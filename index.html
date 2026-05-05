@@ -442,7 +442,19 @@ function enviarPedido(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(dados)
-  }).catch(()=>{});
+  })
+  .then(r=>r.json())
+  .then(function(res){
+    if(res.ok && res.id){
+      var arq=document.getElementById('arquivo').files[0];
+      if(arq){
+        var fd=new FormData();
+        fd.append('arquivo', arq);
+        fetch('/api/pedido/'+res.id+'/arquivo', {method:'POST', body:fd}).catch(()=>{});
+      }
+    }
+  })
+  .catch(()=>{});
 }
 
 function arquivoSelecionado(input){
