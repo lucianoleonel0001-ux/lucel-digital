@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucel Digital — Admin</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;500;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;color:#1a1a1a;background:#f5f3ef;min-height:100vh}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0d0d}
+.login-box{background:#fff;padding:48px 40px;width:100%;max-width:380px;text-align:center}
+.login-brand{font-size:11px;letter-spacing:4px;color:#999;text-transform:uppercase;margin-bottom:24px}
+.login-box h2{font-family:'Playfair Display',serif;font-size:28px;margin-bottom:32px}
+.login-box input{width:100%;padding:12px 14px;border:.5px solid #e0d8cc;font-family:'Inter',sans-serif;font-size:14px;margin-bottom:12px;outline:none}
+.login-box input:focus{border-color:#c9a96e}
+.btn{display:inline-block;background:#c9a96e;color:#0d0d0d;padding:14px 32px;font-size:14px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:none;width:100%;transition:background .2s}
+.btn:hover{background:#e0c08a}
+.btn-sm{padding:8px 16px;font-size:12px;width:auto}
+.btn-green{background:#1a7a4a;color:#fff}
+.btn-green:hover{background:#15603a}
+.btn-red{background:#7a1a1a;color:#fff}
+.btn-red:hover{background:#601515}
+.btn-gray{background:#666;color:#fff}
+.btn-gray:hover{background:#444}
+
+/* ADMIN */
+.admin-wrap{display:none}
+.admin-wrap.show{display:block}
+.topbar{background:#0d0d0d;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+.topbar-brand{font-size:11px;letter-spacing:4px;color:#999;text-transform:uppercase}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.topbar-right span{font-size:13px;color:#666}
+.topbar-right a{font-size:13px;color:#c9a96e;text-decoration:none;cursor:pointer}
+
+.admin-inner{max-width:1100px;margin:0 auto;padding:32px 24px}
+.admin-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:16px}
+.admin-header h1{font-family:'Playfair Display',serif;font-size:28px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:32px}
+.stat{background:#fff;padding:20px;border:.5px solid #e0d8cc}
+.stat-label{font-size:11px;letter-spacing:2px;color:#aaa;text-transform:uppercase;margin-bottom:6px}
+.stat-val{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;color:#1a1a1a}
+.stat-val.gold{color:#c9a96e}
+
+/* PEDIDOS */
+.filtros{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.filtro-btn{padding:8px 16px;font-size:12px;font-weight:500;letter-spacing:.5px;border:1px solid #e0d8cc;background:#fff;cursor:pointer;color:#666;transition:all .2s}
+.filtro-btn.active,.filtro-btn:hover{background:#0d0d0d;color:#c9a96e;border-color:#0d0d0d}
+
+.pedido-card{background:#fff;border:.5px solid #e0d8cc;margin-bottom:12px;overflow:hidden}
+.pedido-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;cursor:pointer;gap:12px;flex-wrap:wrap}
+.pedido-id{font-size:11px;color:#aaa;letter-spacing:1px}
+.pedido-nome{font-size:15px;font-weight:600;color:#1a1a1a}
+.pedido-titulo{font-size:13px;color:#666}
+.pedido-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge{padding:4px 10px;font-size:11px;font-weight:600;letter-spacing:.5px;border-radius:2px}
+.badge-aguardando{background:#fff3cd;color:#856404}
+.badge-liberado{background:#d1ecf1;color:#0c5460}
+.badge-pronto{background:#d4edda;color:#155724}
+.badge-cancelado{background:#f8d7da;color:#721c24}
+.pedido-valor{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#c9a96e}
+.pedido-body{display:none;padding:20px;border-top:.5px solid #f0ebe2;background:#fafaf8}
+.pedido-body.open{display:block}
+.pedido-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px}
+.info-item label{font-size:11px;letter-spacing:1px;color:#aaa;text-transform:uppercase;display:block;margin-bottom:4px}
+.info-item span{font-size:14px;color:#1a1a1a}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+.upload-entrega{margin-top:16px;padding:16px;background:#f5f3ef;border:.5px solid #e0d8cc}
+.upload-entrega label{font-size:12px;font-weight:600;color:#444;display:block;margin-bottom:8px;letter-spacing:.5px}
+.upload-entrega input[type=file]{font-size:13px;color:#666}
+.upload-entrega .btn{margin-top:8px;width:auto;padding:10px 20px;font-size:12px}
+
+.notif{position:fixed;bottom:24px;right:24px;background:#0d0d0d;color:#c9a96e;padding:14px 20px;font-size:13px;font-weight:500;letter-spacing:.5px;display:none;z-index:999}
+.notif.show{display:block}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="login-brand">Lucel Digital</div>
+    <h2>Painel Admin</h2>
+    <input type="password" id="senha" placeholder="Senha de acesso" onkeydown="if(event.key==='Enter')entrar()">
+    <button class="btn" onclick="entrar()" style="margin-top:8px">Entrar →</button>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="admin-wrap" id="adminWrap">
+  <div class="topbar">
+    <div class="topbar-brand">Lucel Digital · Admin</div>
+    <div class="topbar-right">
+      <span id="dataHora"></span>
+      <a onclick="sair()">Sair</a>
+    </div>
+  </div>
+
+  <div class="admin-inner">
+    <div class="admin-header">
+      <h1>Pedidos</h1>
+      <button class="btn btn-sm" onclick="carregarPedidos()">↻ Atualizar</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Total de pedidos</div><div class="stat-val" id="statTotal">0</div></div>
+      <div class="stat"><div class="stat-label">Aguardando</div><div class="stat-val gold" id="statAguardando">0</div></div>
+      <div class="stat"><div class="stat-label">Em andamento</div><div class="stat-val" id="statAndamento">0</div></div>
+      <div class="stat"><div class="stat-label">Concluídos</div><div class="stat-val" id="statProntos">0</div></div>
+    </div>
+
+    <div class="filtros">
+      <button class="filtro-btn active" onclick="filtrar('todos',this)">Todos</button>
+      <button class="filtro-btn" onclick="filtrar('aguardando',this)">Aguardando pagamento</button>
+      <button class="filtro-btn" onclick="filtrar('liberado',this)">Em andamento</button>
+      <button class="filtro-btn" onclick="filtrar('pronto',this)">Concluídos</button>
+    </div>
+
+    <div id="listaPedidos"></div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+var SENHA='lucel2026';
+var filtroAtual='todos';
+var pedidos=[];
+
+function entrar(){
+  var s=document.getElementById('senha').value;
+  if(s===SENHA){
+    document.getElementById('loginWrap').style.display='none';
+    document.getElementById('adminWrap').classList.add('show');
+    carregarPedidos();
+    setInterval(carregarPedidos,30000);
+    atualizarRelogio();
+    setInterval(atualizarRelogio,1000);
+  } else {
+    alert('Senha incorreta.');
+  }
+}
+
+function sair(){
+  document.getElementById('loginWrap').style.display='flex';
+  document.getElementById('adminWrap').classList.remove('show');
+  document.getElementById('senha').value='';
+}
+
+function atualizarRelogio(){
+  var agora=new Date();
+  document.getElementById('dataHora').textContent=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function carregarPedidos(){
+  fetch('/api/pedidos',{headers:{'x-admin-key':SENHA}})
+    .then(r=>r.json())
+    .then(data=>{
+      pedidos=data;
+      renderizarPedidos();
+      atualizarStats();
+    })
+    .catch(()=>{ pedidos=[]; renderizarPedidos(); });
+}
+
+function atualizarStats(){
+  document.getElementById('statTotal').textContent=pedidos.length;
+  document.getElementById('statAguardando').textContent=pedidos.filter(p=>p.status==='aguardando').length;
+  document.getElementById('statAndamento').textContent=pedidos.filter(p=>p.status==='liberado').length;
+  document.getElementById('statProntos').textContent=pedidos.filter(p=>p.status==='pronto').length;
+}
+
+function filtrar(f,btn){
+  filtroAtual=f;
+  document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderizarPedidos();
+}
+
+function renderizarPedidos(){
+  var lista=filtroAtual==='todos'?pedidos:pedidos.filter(p=>p.status===filtroAtual);
+  var el=document.getElementById('listaPedidos');
+  if(!lista.length){
+    el.innerHTML='<div style="text-align:center;padding:48px;color:#aaa;font-size:14px">Nenhum pedido encontrado.</div>';
+    return;
+  }
+  el.innerHTML=lista.map(function(p){
+    var badgeClass='badge-'+p.status;
+    var badgeTexto={aguardando:'Aguardando pagamento',liberado:'Em andamento',pronto:'Concluído',cancelado:'Cancelado'}[p.status]||p.status;
+    return '<div class="pedido-card">'+
+      '<div class="pedido-header" onclick="togglePedido(\''+p.id+'\')">'+
+        '<div>'+
+          '<div class="pedido-id">#'+p.id+'</div>'+
+          '<div class="pedido-nome">'+p.nome+'</div>'+
+          '<div class="pedido-titulo">'+p.titulo+' · '+p.formato+'</div>'+
+        '</div>'+
+        '<div class="pedido-meta">'+
+          '<span class="badge '+badgeClass+'">'+badgeTexto+'</span>'+
+          '<span style="font-size:12px;color:#aaa">'+p.pacote+'</span>'+
+          '<span class="pedido-valor">R$ '+p.preco+',00</span>'+
+          '<span style="font-size:13px">'+p.data+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="pedido-body" id="body'+p.id+'">'+
+        '<div class="pedido-info">'+
+          '<div class="info-item"><label>Nome</label><span>'+p.nome+'</span></div>'+
+          '<div class="info-item"><label>E-mail</label><span>'+p.email+'</span></div>'+
+          '<div class="info-item"><label>WhatsApp</label><span>'+p.whats+'</span></div>'+
+          '<div class="info-item"><label>Pacote</label><span>'+p.pacote+'</span></div>'+
+          '<div class="info-item"><label>Formato</label><span>'+p.formato+'</span></div>'+
+          '<div class="info-item"><label>Valor</label><span>R$ '+p.preco+',00</span></div>'+
+        '</div>'+
+        (p.arquivoOriginal?'<div style="margin-bottom:16px"><a href="/api/arquivo/'+p.id+'" style="font-size:13px;color:#c9a96e;text-decoration:none" target="_blank">📄 Baixar arquivo do cliente</a></div>':'')+
+        '<div class="acoes">'+
+          (p.status==='aguardando'?'<button class="btn btn-green btn-sm" onclick="liberar(\''+p.id+'\')">✓ Liberar serviço</button>':'')+
+          (p.status==='liberado'?'<div class="upload-entrega"><label>ENVIAR ARQUIVO DIAGRAMADO</label><input type="file" id="file'+p.id+'" accept=".docx,.pdf"><button class="btn btn-sm" onclick="entregarArquivo(\''+p.id+'\')">Entregar ao cliente →</button></div>':'')+
+          (p.status==='pronto'?'<span style="font-size:13px;color:#1a7a4a;font-weight:600">✓ Entregue</span>':'')+
+          '<a href="https://wa.me/55'+p.whats.replace(/\D/g,'')+'" target="_blank" class="btn btn-gray btn-sm">💬 WhatsApp</a>'+
+          (p.status!=='cancelado'&&p.status!=='pronto'?'<button class="btn btn-red btn-sm" onclick="cancelar(\''+p.id+'\')">✕ Cancelar</button>':'')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function togglePedido(id){
+  var el=document.getElementById('body'+id);
+  el.classList.toggle('open');
+}
+
+function liberar(id){
+  if(!confirm('Liberar o serviço para este pedido? O cliente será avisado.')) return;
+  fetch('/api/pedido/'+id+'/liberar',{method:'POST',headers:{'x-admin-key':SENHA}})
+    .then(r=>r.json())
+    .then(()=>{ notif('Serviço liberado! Cliente avisado.'); carregarPedidos(); })
+    .catch(()=>notif('Erro ao liberar.'));
+}
+
+function entregarArquivo(id){
+  var input=document.getElementById('file'+id);
+  if(!input.files[0]){ alert('Selecione o arquivo diagramado.'); return; }
+  var fd=new FormData();
+  fd.append('arquivo',input.files[0]);
+  fetch('/api/pedido/'+id+'/entregar',{method:'POST',headers:{'x-admin-key':SENHA},body:fd})
+    .then(r=>r.json())
+    .then(()=>{ notif('Arquivo entregue! Cliente avisado por e-mail e WhatsApp.'); carregarPedidos(); })
+    .catch(()=>notif('Erro ao entregar arquivo.'));
+}
+
+function cancelar(id){
+  if(!confirm('Cancelar este pedido?')) return;
+  fetch('/api/pedido/'+id+'/cancelar',{method:'POST',headers:{'x-admin-key':SENHA}})
+    .then(r=>r.json())
+    .then(()=>{ notif('Pedido cancelado.'); carregarPedidos(); })
+    .catch(()=>notif('Erro.'));
+}
+
+function notif(msg){
+  var el=document.getElementById('notif');
+  el.textContent=msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>

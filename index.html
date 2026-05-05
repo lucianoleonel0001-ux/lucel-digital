@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lucel Digital — Diagramação Profissional</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;color:#1a1a1a;background:#fff;line-height:1.6}
+
+/* HERO */
+.hero{background:#0d0d0d;color:#fff;padding:80px 24px 60px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,0.03) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,0.03) 40px)}
+.brand{font-size:11px;letter-spacing:4px;color:#999;text-transform:uppercase;margin-bottom:32px;position:relative}
+.hero h1{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,60px);font-weight:700;line-height:1.1;margin-bottom:20px;color:#fff;position:relative}
+.hero h1 span{font-style:italic;color:#c9a96e}
+.hero p{font-size:17px;color:#aaa;max-width:520px;margin:0 auto 40px;font-weight:300;position:relative}
+.btn-cta{display:inline-block;background:#c9a96e;color:#0d0d0d;padding:16px 40px;font-size:15px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:none;transition:background .2s;text-decoration:none;position:relative}
+.btn-cta:hover{background:#e0c08a}
+.trust{font-size:12px;color:#555;margin-top:16px;letter-spacing:.5px;position:relative}
+.divider{width:40px;height:1px;background:#c9a96e;margin:0 auto 40px}
+.section-title{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;text-align:center;margin-bottom:8px}
+
+/* PACOTES */
+.pacotes-wrap{padding:64px 24px;background:#fff}
+.pacotes-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:700px;margin:0 auto 40px}
+.pac-card{border:1.5px solid #e0d8cc;padding:32px 24px;position:relative;cursor:pointer;transition:border-color .2s,background .2s}
+.pac-card:hover{border-color:#c9a96e}
+.pac-card.active{border:2px solid #c9a96e;background:#fdfaf5}
+.pac-card.destaque{border:2px solid #c9a96e}
+.pac-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#c9a96e;color:#0d0d0d;font-size:10px;font-weight:600;letter-spacing:1px;padding:4px 14px;white-space:nowrap}
+.pac-check{position:absolute;top:12px;right:12px;width:20px;height:20px;background:#c9a96e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#0d0d0d;font-weight:700;opacity:0;transition:opacity .2s}
+.pac-card.active .pac-check{opacity:1}
+.pac-title{font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:6px}
+.pac-sub{font-size:12px;color:#999;margin-bottom:16px}
+.pac-itens{list-style:none;margin-bottom:20px}
+.pac-itens li{font-size:13px;color:#555;padding:5px 0;border-bottom:.5px solid #f0ebe2;display:flex;align-items:flex-start;gap:8px}
+.pac-itens li:last-child{border-bottom:none}
+.pac-itens li::before{content:'✓';color:#c9a96e;font-weight:700;font-size:13px;flex-shrink:0;margin-top:1px}
+.pac-price{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:#c9a96e}
+.pac-price span{font-family:'Inter',sans-serif;font-size:12px;color:#aaa;font-weight:400}
+
+/* FORMATOS */
+.formatos-wrap{padding:48px 24px 64px;background:#f9f7f3}
+.formatos-intro{text-align:center;color:#666;font-size:14px;margin-bottom:36px}
+.formatos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:780px;margin:0 auto 40px}
+.fmt-card{background:#fff;border:1.5px solid #e0d8cc;padding:28px 16px 24px;text-align:center;cursor:pointer;position:relative;transition:border-color .2s,background .2s}
+.fmt-card:hover{border-color:#c9a96e}
+.fmt-card.active{border:2px solid #c9a96e;background:#fdfaf5}
+.fmt-check{position:absolute;top:10px;right:10px;width:18px;height:18px;background:#c9a96e;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#0d0d0d;font-weight:700;opacity:0;transition:opacity .2s}
+.fmt-card.active .fmt-check{opacity:1}
+.fmt-size{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:10px}
+.fmt-label{font-size:10px;letter-spacing:2px;color:#aaa;text-transform:uppercase;margin-bottom:10px}
+.fmt-desc{font-size:12px;color:#777;line-height:1.6;margin-bottom:14px}
+
+/* UPLOAD AREA */
+.upload-wrap{padding:48px 24px;background:#fff;max-width:700px;margin:0 auto}
+.upload-box{border:2px dashed #e0d8cc;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.upload-box:hover,.upload-box.drag{border-color:#c9a96e;background:#fdfaf5}
+.upload-box input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:36px;margin-bottom:12px}
+.upload-box h3{font-size:16px;font-weight:600;margin-bottom:6px}
+.upload-box p{font-size:13px;color:#888}
+.upload-box .file-name{font-size:13px;color:#c9a96e;font-weight:600;margin-top:10px;display:none}
+
+/* FORM */
+.form-wrap{padding:0 24px 48px;max-width:700px;margin:0 auto}
+.form-group{margin-bottom:16px}
+.form-group label{font-size:13px;font-weight:500;color:#444;display:block;margin-bottom:6px}
+.form-group input{width:100%;padding:12px 14px;border:.5px solid #e0d8cc;font-family:'Inter',sans-serif;font-size:14px;color:#1a1a1a;outline:none;transition:border-color .2s}
+.form-group input:focus{border-color:#c9a96e}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* AVISO PIX */
+.pix-aviso{background:#0d0d0d;color:#fff;padding:32px 24px;text-align:center;max-width:700px;margin:0 auto;display:none}
+.pix-aviso.show{display:block}
+.pix-aviso h3{font-family:'Playfair Display',serif;font-size:22px;margin-bottom:12px;color:#c9a96e}
+.pix-aviso p{font-size:14px;color:#aaa;margin-bottom:8px;line-height:1.7}
+.pix-chave{font-size:18px;font-weight:600;color:#fff;background:#1a1a1a;padding:12px 20px;margin:16px auto;display:inline-block;letter-spacing:1px}
+.pix-valor{font-family:'Playfair Display',serif;font-size:36px;color:#c9a96e;margin:8px 0}
+.pix-aviso .aviso-pequeno{font-size:12px;color:#666;margin-top:16px;line-height:1.6}
+.btn-whats{display:inline-block;background:#25d366;color:#fff;padding:14px 32px;font-size:14px;font-weight:600;text-decoration:none;margin-top:16px;cursor:pointer;border:none}
+.btn-whats:hover{background:#1fb855}
+
+/* GARANTIAS */
+.garantias-wrap{padding:64px 24px;background:#0d0d0d}
+.garantias-inner{max-width:840px;margin:0 auto}
+.garantias-wrap .section-title{color:#fff}
+.garantias-sub{text-align:center;color:#777;font-size:14px;margin-bottom:40px}
+.garantias-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:2px;background:#1a1a1a}
+.gar-item{background:#0d0d0d;padding:24px;border-left:2px solid #c9a96e}
+.gar-title{font-size:13px;font-weight:600;color:#c9a96e;letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase}
+.gar-desc{font-size:13px;color:#888;line-height:1.7}
+
+/* STEPS */
+.steps-wrap{background:#f9f7f3;padding:64px 24px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));max-width:840px;margin:0 auto}
+.step{padding:24px;text-align:center}
+.step-num{font-family:'Playfair Display',serif;font-size:48px;font-weight:700;color:#e8dcc8;line-height:1;margin-bottom:12px}
+.step h3{font-size:14px;font-weight:600;margin-bottom:8px}
+.step p{font-size:13px;color:#777;line-height:1.5}
+
+/* FAQ */
+.faq{background:#f9f7f3;padding:64px 24px}
+.faq-inner{max-width:680px;margin:0 auto}
+.faq-item{border-bottom:.5px solid #e0d8cc;padding:20px 0}
+.faq-q{font-size:15px;font-weight:600;color:#1a1a1a;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.faq-a{font-size:14px;color:#666;line-height:1.7;margin-top:12px;display:none}
+.faq-a.open{display:block}
+
+footer{background:#0d0d0d;color:#555;text-align:center;padding:32px;font-size:12px;letter-spacing:1px}
+footer a{color:#888;text-decoration:none}
+
+/* STEP INDICATOR */
+.steps-indicator{display:flex;align-items:center;justify-content:center;gap:0;max-width:500px;margin:0 auto 48px;padding:0 24px}
+.si-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+.si-num{width:32px;height:32px;border-radius:50%;border:1.5px solid #e0d8cc;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#bbb;background:#fff;transition:all .3s}
+.si-num.active{background:#c9a96e;border-color:#c9a96e;color:#0d0d0d}
+.si-num.done{background:#0d0d0d;border-color:#0d0d0d;color:#c9a96e}
+.si-label{font-size:11px;color:#aaa;letter-spacing:.5px;text-align:center}
+.si-label.active{color:#c9a96e}
+.si-line{height:1px;flex:1;background:#e0d8cc;margin-bottom:18px}
+.si-line.done{background:#c9a96e}
+
+.section-wrap{display:none}
+.section-wrap.active{display:block}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="brand">Lucel Digital</div>
+  <h1>Diagramação <span>profissional</span><br>para o seu livro</h1>
+  <p>Envie o manuscrito. Escolha o pacote e o formato. Receba seu livro pronto em .docx e .pdf em até 2 horas.</p>
+  <br>
+  <button class="btn-cta" onclick="document.getElementById('pedido').scrollIntoView({behavior:'smooth'})">Começar agora →</button>
+  <div class="trust">✓ .docx + .pdf inclusos · Entrega em até 2h · Pagamento via PIX</div>
+</div>
+
+<!-- FLUXO DO PEDIDO -->
+<div id="pedido" style="padding:64px 24px 0;max-width:840px;margin:0 auto">
+  <div class="section-title">Faça seu pedido</div>
+  <div class="divider" style="margin-top:8px"></div>
+
+  <!-- INDICADOR DE PASSOS -->
+  <div class="steps-indicator">
+    <div class="si-step">
+      <div class="si-num active" id="si1">1</div>
+      <div class="si-label active" id="sl1">Pacote</div>
+    </div>
+    <div class="si-line" id="line1"></div>
+    <div class="si-step">
+      <div class="si-num" id="si2">2</div>
+      <div class="si-label" id="sl2">Formato</div>
+    </div>
+    <div class="si-line" id="line2"></div>
+    <div class="si-step">
+      <div class="si-num" id="si3">3</div>
+      <div class="si-label" id="sl3">Seus dados</div>
+    </div>
+    <div class="si-line" id="line3"></div>
+    <div class="si-step">
+      <div class="si-num" id="si4">4</div>
+      <div class="si-label" id="sl4">Arquivo</div>
+    </div>
+    <div class="si-line" id="line4"></div>
+    <div class="si-step">
+      <div class="si-num" id="si5">5</div>
+      <div class="si-label" id="sl5">Pagamento</div>
+    </div>
+  </div>
+
+  <!-- PASSO 1: PACOTE -->
+  <div class="section-wrap active" id="passo1">
+    <div style="max-width:420px;margin:0 auto 32px">
+      <div class="pac-card destaque active" style="cursor:default">
+        <div class="pac-badge">PACOTE COMPLETO</div>
+        <div class="pac-title">Diagramação + Revisão</div>
+        <div class="pac-sub">Formatação editorial + correção do texto</div>
+        <ul class="pac-itens">
+          <li>Diagramação profissional</li>
+          <li>Arquivo .docx editável</li>
+          <li>Arquivo .pdf para gráfica</li>
+          <li>Sumário automático</li>
+          <li>Cabeçalho e rodapé numerado</li>
+          <li>Revisão ortográfica e gramatical</li>
+          <li>Concordância, pontuação e regência</li>
+          <li>Uso correto de crase</li>
+          <li>Entrega em até 2h</li>
+        </ul>
+        <div class="pac-price">R$ 120<span> /livro</span></div>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <button class="btn-cta" onclick="irPasso(2)">Continuar →</button>
+    </div>
+  </div>
+
+  <!-- PASSO 2: FORMATO -->
+  <div class="section-wrap" id="passo2">
+    <p style="text-align:center;color:#666;font-size:14px;margin-bottom:28px">Selecione o tamanho do seu livro</p>
+    <div class="formatos-grid">
+      <div class="fmt-card" onclick="selecionarFormato(this,'14×21cm')">
+        <div class="fmt-check">✓</div>
+        <div class="fmt-size">14×21 cm</div>
+        <div class="fmt-desc">Padrão para ficção, romances e autoajuda. Compacto e econômico na gráfica.</div>
+      </div>
+      <div class="fmt-card" onclick="selecionarFormato(this,'16×23cm')">
+        <div class="fmt-check">✓</div>
+        <div class="fmt-size">16×23 cm</div>
+        <div class="fmt-desc">Ideal para livros técnicos, acadêmicos e obras com mais conteúdo.</div>
+      </div>
+      <div class="fmt-card" onclick="selecionarFormato(this,'A4 (21×29,7cm)')">
+        <div class="fmt-check">✓</div>
+        <div class="fmt-size">A4</div>
+        <div class="fmt-label">21×29,7 cm</div>
+        <div class="fmt-desc">Formato amplo para apostilas, manuais, teses e documentos institucionais.</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn-cta" onclick="irPasso(3)">Continuar →</button>
+      <br><br>
+      <a href="#" onclick="irPasso(1);return false" style="font-size:13px;color:#999;text-decoration:none">← Voltar</a>
+    </div>
+  </div>
+
+  <!-- PASSO 3: DADOS -->
+  <div class="section-wrap" id="passo3">
+    <div class="form-wrap" style="padding:0 0 32px">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome completo</label>
+          <input type="text" id="nome" placeholder="Seu nome">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp</label>
+          <input type="tel" id="whats" placeholder="(11) 99999-9999">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="email" placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Título do livro</label>
+        <input type="text" id="titulo" placeholder="Nome do seu livro">
+      </div>
+      <p style="font-size:12px;color:#999;margin-top:8px">Você receberá o aviso de conclusão por e-mail e WhatsApp.</p>
+    </div>
+    <div style="text-align:center">
+      <button class="btn-cta" onclick="irPasso(4)">Continuar →</button>
+      <br><br>
+      <a href="#" onclick="irPasso(2);return false" style="font-size:13px;color:#999;text-decoration:none">← Voltar</a>
+    </div>
+  </div>
+
+  <!-- PASSO 4: UPLOAD -->
+  <div class="section-wrap" id="passo4">
+    <div class="upload-wrap" style="padding:0 0 32px">
+      <div class="upload-box" id="uploadBox">
+        <input type="file" id="arquivo" accept=".docx,.doc,.pdf" onchange="arquivoSelecionado(this)">
+        <div class="upload-icon">📄</div>
+        <h3>Arraste seu arquivo aqui</h3>
+        <p>ou clique para selecionar · .docx, .doc ou .pdf</p>
+        <div class="file-name" id="fileName"></div>
+      </div>
+      <p style="font-size:12px;color:#999;margin-top:12px;text-align:center">Envie o manuscrito exatamente como está. Não faremos alterações no conteúdo.</p>
+    </div>
+    <div style="text-align:center">
+      <button class="btn-cta" onclick="irPasso(5)">Continuar →</button>
+      <br><br>
+      <a href="#" onclick="irPasso(3);return false" style="font-size:13px;color:#999;text-decoration:none">← Voltar</a>
+    </div>
+  </div>
+
+  <!-- PASSO 5: PAGAMENTO -->
+  <div class="section-wrap" id="passo5">
+    <div class="pix-aviso show" id="pixAviso">
+      <h3>Quase lá! Agora faça o PIX</h3>
+      <p>Seu pedido foi recebido. Para iniciar o serviço, envie o pagamento via PIX e o comprovante pelo WhatsApp.</p>
+      <div style="margin:20px 0">
+        <div style="font-size:12px;color:#666;letter-spacing:1px;margin-bottom:6px">CHAVE PIX (CNPJ)</div>
+        <div class="pix-chave">37.871.182/0001-86</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">Lucel Digital</div>
+        <div class="pix-valor" id="pixValor">R$ 80,00</div>
+        <div style="font-size:12px;color:#666">Valor exato a transferir</div>
+      </div>
+      <a id="btnWhats" class="btn-whats" href="#" target="_blank">💬 Enviar comprovante no WhatsApp</a>
+      <div class="aviso-pequeno">
+        ⏳ Após o envio do comprovante, seu serviço será iniciado.<br>
+        📧 Você receberá um aviso por <strong style="color:#aaa">e-mail</strong> e <strong style="color:#aaa">WhatsApp</strong> assim que o arquivo estiver pronto.<br>
+        ⚡ Entrega em até 2 horas após a confirmação.
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:24px">
+      <a href="#" onclick="irPasso(4);return false" style="font-size:13px;color:#999;text-decoration:none">← Voltar</a>
+    </div>
+  </div>
+</div>
+
+<!-- GARANTIAS -->
+<div class="garantias-wrap" style="margin-top:64px">
+  <div class="garantias-inner">
+    <div class="section-title">Seu arquivo em boas mãos</div>
+    <div class="divider" style="margin-top:8px"></div>
+    <p class="garantias-sub">Seguimos um processo rigoroso para garantir que nenhum detalhe do seu original seja perdido</p>
+    <div class="garantias-grid">
+      <div class="gar-item">
+        <div class="gar-title">Texto 100% original</div>
+        <div class="gar-desc">Nenhuma palavra é acrescentada ou removida. Trabalhamos exclusivamente com o conteúdo enviado pelo autor.</div>
+      </div>
+      <div class="gar-item">
+        <div class="gar-title">Negritos preservados</div>
+        <div class="gar-desc">Mantemos exatamente os negritos do original — onde há negrito, fica. Onde não há, não colocamos.</div>
+      </div>
+      <div class="gar-item">
+        <div class="gar-title">Títulos e subtítulos</div>
+        <div class="gar-desc">A numeração e hierarquia de todos os títulos e subtítulos são mantidas conforme o documento original.</div>
+      </div>
+      <div class="gar-item">
+        <div class="gar-title">Tabelas e imagens</div>
+        <div class="gar-desc">Tabelas e imagens são preservadas e reposicionadas conforme o novo layout. Nenhum elemento visual é perdido.</div>
+      </div>
+      <div class="gar-item">
+        <div class="gar-title">Quebras de linha corrigidas</div>
+        <div class="gar-desc">Identificamos e corrigimos todas as quebras de linha indevidas causadas na conversão de PDF para Word.</div>
+      </div>
+      <div class="gar-item">
+        <div class="gar-title">Conferência final</div>
+        <div class="gar-desc">O livro é lido e conferido integralmente antes da entrega para garantir que tudo está correto e fluido.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMO FUNCIONA -->
+<div class="steps-wrap">
+  <div class="section-title" style="margin-bottom:8px">Como funciona?</div>
+  <div class="divider"></div>
+  <div class="steps">
+    <div class="step"><div class="step-num">01</div><h3>Escolha o pacote</h3><p>Diagramação ou Diagramação + Revisão.</p></div>
+    <div class="step"><div class="step-num">02</div><h3>Escolha o formato</h3><p>14×21, 16×23 ou A4.</p></div>
+    <div class="step"><div class="step-num">03</div><h3>Suba o arquivo</h3><p>.docx, .doc ou .pdf.</p></div>
+    <div class="step"><div class="step-num">04</div><h3>Pague via PIX</h3><p>Envie o comprovante pelo WhatsApp.</p></div>
+    <div class="step"><div class="step-num">05</div><h3>Receba em até 2h</h3><p>.docx e .pdf prontos por e-mail e WhatsApp.</p></div>
+  </div>
+</div>
+
+<!-- FAQ -->
+<div class="faq">
+  <div class="faq-inner">
+    <div class="section-title" style="margin-bottom:8px">Dúvidas frequentes</div>
+    <div class="divider"></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">O que inclui a revisão ortográfica e gramatical? <span>+</span></div><div class="faq-a">Corrigimos ortografia, concordância verbal e nominal, pontuação, regência e uso correto de crase.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Posso mudar o formato depois de pagar? <span>+</span></div><div class="faq-a">Não. O formato é definido antes do início da diagramação. Escolha com atenção antes de contratar.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Quais arquivos posso enviar? <span>+</span></div><div class="faq-a">.docx, .doc e .pdf. Quanto mais limpo o texto, melhor o resultado final.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Como recebo o arquivo diagramado? <span>+</span></div><div class="faq-a">Você recebe um link de download por e-mail e WhatsApp assim que o serviço for concluído.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Os arquivos são meus? Posso publicar? <span>+</span></div><div class="faq-a">Sim, 100%. O .docx e o .pdf são de sua propriedade para usar como quiser.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Há reembolso? <span>+</span></div><div class="faq-a">Por ser serviço digital com entrega imediata, não há reembolso após início da diagramação, conforme o CDC.</div></div>
+  </div>
+</div>
+
+<footer>
+  <div style="margin-bottom:8px"><strong style="color:#888;letter-spacing:2px">LUCEL DIGITAL</strong></div>
+  CNPJ 37.871.182/0001-86 · <a href="https://wa.me/5511934964127">(11) 93496-4127</a><br><br>
+  © 2026 Lucel Digital. Todos os direitos reservados.
+</footer>
+
+<script>
+var pacote='Diagramação + Revisão', preco='120', formato='';
+
+function selecionarPacote(el, p, v){
+  document.querySelectorAll('.pac-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  pacote=p; preco=v;
+}
+
+function selecionarFormato(el, f){
+  document.querySelectorAll('.fmt-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  formato=f;
+}
+
+function irPasso(n){
+  if(n===2 && !pacote){ alert('Selecione um pacote para continuar.'); return; }
+  if(n===3 && !formato){ alert('Selecione um formato para continuar.'); return; }
+  if(n===4){
+    var nome=document.getElementById('nome').value.trim();
+    var email=document.getElementById('email').value.trim();
+    var whats=document.getElementById('whats').value.trim();
+    var titulo=document.getElementById('titulo').value.trim();
+    if(!nome||!email||!whats||!titulo){ alert('Preencha todos os campos para continuar.'); return; }
+  }
+  if(n===5){
+    var arq=document.getElementById('arquivo').files[0];
+    if(!arq){ alert('Selecione o arquivo do seu manuscrito para continuar.'); return; }
+    atualizarPix();
+    enviarPedido();
+  }
+  document.querySelectorAll('.section-wrap').forEach(s=>s.classList.remove('active'));
+  document.getElementById('passo'+n).classList.add('active');
+  atualizarIndicador(n);
+  document.getElementById('pedido').scrollIntoView({behavior:'smooth'});
+}
+
+function atualizarIndicador(n){
+  for(var i=1;i<=5;i++){
+    var num=document.getElementById('si'+i);
+    var lbl=document.getElementById('sl'+i);
+    num.classList.remove('active','done');
+    lbl.classList.remove('active');
+    if(i<n){ num.classList.add('done'); num.innerHTML='✓'; }
+    else if(i===n){ num.classList.add('active'); num.innerHTML=i; lbl.classList.add('active'); }
+    else{ num.innerHTML=i; }
+    if(i<5){
+      var line=document.getElementById('line'+i);
+      line.style.background=i<n?'#c9a96e':'#e0d8cc';
+    }
+  }
+}
+
+function atualizarPix(){
+  document.getElementById('pixValor').textContent='R$ '+preco+',00';
+  var nome=document.getElementById('nome').value.trim();
+  var whats=document.getElementById('whats').value.trim().replace(/\D/g,'');
+  var msg='Olá! Segue o comprovante do PIX.\nNome: '+nome+'\nPacote: '+pacote+'\nFormato: '+formato+'\nValor: R$ '+preco+',00';
+  document.getElementById('btnWhats').href='https://wa.me/5511934964127?text='+encodeURIComponent(msg);
+}
+
+function enviarPedido(){
+  var dados={
+    nome: document.getElementById('nome').value.trim(),
+    email: document.getElementById('email').value.trim(),
+    whats: document.getElementById('whats').value.trim(),
+    titulo: document.getElementById('titulo').value.trim(),
+    pacote: pacote,
+    formato: formato,
+    preco: preco
+  };
+  fetch('/api/pedido', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(dados)
+  }).catch(()=>{});
+}
+
+function arquivoSelecionado(input){
+  if(input.files[0]){
+    var fn=document.getElementById('fileName');
+    fn.textContent='📄 '+input.files[0].name;
+    fn.style.display='block';
+  }
+}
+
+function toggle(el){
+  var a=el.nextElementSibling;
+  var s=el.querySelector('span');
+  a.classList.toggle('open');
+  s.textContent=a.classList.contains('open')?'−':'+';
+}
+
+// Drag & drop
+var box=document.getElementById('uploadBox');
+box.addEventListener('dragover',function(e){e.preventDefault();box.classList.add('drag')});
+box.addEventListener('dragleave',function(){box.classList.remove('drag')});
+box.addEventListener('drop',function(e){
+  e.preventDefault();box.classList.remove('drag');
+  var f=e.dataTransfer.files[0];
+  if(f){
+    document.getElementById('arquivo').files=e.dataTransfer.files;
+    arquivoSelecionado(document.getElementById('arquivo'));
+  }
+});
+</script>
+</body>
+</html>
