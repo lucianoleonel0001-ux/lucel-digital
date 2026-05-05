@@ -5,6 +5,8 @@ const fs         = require('fs');
 const path       = require('path');
 const crypto     = require('crypto');
 const { execSync } = require('child_process');
+const mammoth    = require('mammoth');
+const pdfParse   = require('pdf-parse');
 
 const app = express();
 app.use(express.json());
