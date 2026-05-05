@@ -179,7 +179,23 @@ async function analisarEstrutura(texto, pedido) {
         })
       });
       const d2 = await resp2.json();
+      console.log('[DIAG] API resposta secao', i+1, '- tipo:', typeof d2, '- keys:', Object.keys(d2));
+      
+      // Verificar erro da API
+      if (d2.error) {
+        console.error('[DIAG] ERRO API:', JSON.stringify(d2.error));
+        capitulos.push({ numero: String(i+1), titulo: tituloSec, paragrafos: [] });
+        continue;
+      }
+      
+      if (!d2.content || !d2.content[0]) {
+        console.error('[DIAG] Resposta sem content:', JSON.stringify(d2).substring(0, 200));
+        capitulos.push({ numero: String(i+1), titulo: tituloSec, paragrafos: [] });
+        continue;
+      }
+      
       const raw2 = (d2.content[0].text || '{}').replace(/```json|```/g, '').trim();
+      console.log('[DIAG] Raw resposta secao', i+1, ':', raw2.substring(0, 100));
       const cap = JSON.parse(raw2);
       capitulos.push({
         numero: String(cap.numero || i+1),
