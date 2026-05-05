@@ -112,7 +112,7 @@ async function chamarClaude(prompt, maxTokens) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-sonnet-20240620',
       max_tokens: maxTokens || 8000,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -136,116 +136,51 @@ async function etapa1_lerLivro(filePath) {
     console.log('[1] PDF chars:', data.text.length);
     return data.text || '';
   }
-  const result = await mammoth.extractRawText({ path: filePath });
+  const result = await mammoth.convertToHtml({ path: filePath });
   console.log('[1] DOCX chars:', result.value.length);
   return result.value || '';
 }
 
 // ══════════════════════════════════════
-// ETAPA 2 — IDENTIFICAR ESTRUTURA
-// Claude lê tudo e identifica:
-// título, subtítulo, autor, credencial,
-// e lista de todas as seções
+// ETAPAS 2+3 — UMA ÚNICA CHAMADA
+// Claude lê o livro todo e retorna
+// estrutura completa com todo o conteúdo
 // ══════════════════════════════════════
-async function etapa2_identificarEstrutura(texto) {
-  console.log('[2] Identificando estrutura...');
+async function etapa2e3_estruturarLivro(texto) {
+  console.log('[2+3] Estruturando livro completo...');
+
   const prompt =
-    'Leia este livro e retorne APENAS JSON valido (sem markdown, sem explicacao):\n\n' +
+    'Organize este livro em capitulos e retorne APENAS JSON valido (sem markdown):\n\n' +
     '{\n' +
     '  "titulo": "titulo principal do livro",\n' +
-    '  "subtitulo": "subtitulo se houver, senao string vazia",\n' +
-    '  "autor": "nome do autor se encontrado, senao vazio",\n' +
-    '  "credencial": "ex: Pastor, Dr., Professor — se houver, senao vazio",\n' +
-    '  "secoes": ["titulo exato da secao 1", "titulo exato da secao 2"]\n' +
+    '  "subtitulo": "subtitulo se houver, senao vazio",\n' +
+    '  "autor": "nome do autor, senao vazio",\n' +
+    '  "credencial": "ex: Pastor, Dr. — se houver, senao vazio",\n' +
+    '  "capitulos": [\n' +
+    '    {\n' +
+    '      "numero": "1",\n' +
+    '      "titulo": "TITULO EXATO DO CAPITULO",\n' +
+    '      "paragrafos": [\n' +
+    '        {"tipo": "normal", "texto": "texto exato do paragrafo", "negrito": false}\n' +
+    '      ]\n' +
+    '    }\n' +
+    '  ]\n' +
     '}\n\n' +
-    'INSTRUCOES:\n' +
-    '- Use o titulo EXATO como aparece no texto\n' +
-    '- Liste TODAS as secoes em ordem: prefacio, introducao, capitulos, conclusao, etc\n' +
-    '- Mantenha numeracao exata dos capitulos\n\n' +
-    'LIVRO:\n' + texto.substring(0, 40000);
+    'REGRAS CRITICAS:\n' +
+    '1. NAO adicione nem remova NENHUMA palavra do texto original\n' +
+    '2. Preserve negritos marcando **texto** inline\n' +
+    '3. Mantenha numeracao exata de titulos e subtitulos\n' +
+    '4. Corrija quebras de linha indevidas (una linhas que continuam o mesmo paragrafo)\n' +
+    '5. tipo pode ser "normal" ou "subtitulo"\n' +
+    '6. Inclua TODOS os paragrafos sem pular nenhum\n' +
+    '7. Prefacio, introducao, conclusao = capitulos separados\n\n' +
+    'LIVRO COMPLETO:\n' + texto.substring(0, 200000);
 
-  const resposta = await chamarClaude(prompt, 2000);
+  const resposta = await chamarClaude(prompt, 16000);
   const estrutura = JSON.parse(resposta.replace(/```json|```/g, '').trim());
-  console.log('[2] Titulo:', estrutura.titulo);
-  console.log('[2] Secoes:', estrutura.secoes ? estrutura.secoes.length : 0);
+  console.log('[2+3] Titulo:', estrutura.titulo);
+  console.log('[2+3] Capitulos:', estrutura.capitulos ? estrutura.capitulos.length : 0);
   return estrutura;
-}
-
-// ══════════════════════════════════════
-// ETAPA 3 — EXTRAIR CONTEÚDO
-// Para cada seção, extrai parágrafos
-// preservando texto original, negritos,
-// numeração e corrigindo quebras de linha
-// ══════════════════════════════════════
-async function etapa3_extrairConteudo(texto, secoes) {
-  console.log('[3] Processando', secoes.length, 'secoes...');
-  const capitulos = [];
-
-  for (let i = 0; i < secoes.length; i++) {
-    const titulo = secoes[i];
-    const proximo = secoes[i + 1] || null;
-
-    // Localizar seção no texto
-    const busca = titulo.substring(0, 40);
-    let inicio = texto.indexOf(busca);
-    if (inicio < 0) {
-      console.log('[3] Secao', i+1, 'nao encontrada');
-      capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: [] });
-      continue;
-    }
-
-    // Pular o título para pegar só o conteúdo
-    const fimTitulo = texto.indexOf('\n', inicio);
-    const inicioConteudo = fimTitulo > 0 ? fimTitulo + 1 : inicio;
-
-    let fim = texto.length;
-    if (proximo) {
-      const buscaProx = proximo.substring(0, 40);
-      const idxProx = texto.indexOf(buscaProx, inicioConteudo + 10);
-      if (idxProx > inicioConteudo) fim = idxProx;
-    }
-
-    const conteudo = texto.substring(inicioConteudo, Math.min(fim, inicioConteudo + 12000)).trim();
-    console.log('[3] Secao', i+1, '"' + titulo.substring(0,25) + '":', conteudo.length, 'chars');
-
-    if (!conteudo || conteudo.length < 5) {
-      capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: [] });
-      continue;
-    }
-
-    const prompt =
-      'Processe o texto abaixo e retorne APENAS JSON valido:\n\n' +
-      '{"numero":"' + (i+1) + '","titulo":"' + titulo.replace(/"/g, '\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\n' +
-      'REGRAS CRITICAS:\n' +
-      '1. NAO adicione nem remova NENHUMA palavra\n' +
-      '2. Preserve negritos marcando com **texto** inline\n' +
-      '3. Mantenha numeracao de titulos e subtitulos\n' +
-      '4. Corrija quebras de linha indevidas (una linhas que continuam o mesmo paragrafo)\n' +
-      '5. tipo: "normal" para paragrafos, "subtitulo" para subtitulos internos\n' +
-      '6. Inclua TODOS os paragrafos\n\n' +
-      'TEXTO:\n' + conteudo;
-
-    try {
-      const resposta = await chamarClaude(prompt, 8000);
-      const cap = JSON.parse(resposta.replace(/```json|```/g, '').trim());
-      capitulos.push({
-        numero: String(i+1),
-        titulo: String(cap.titulo || titulo),
-        paragrafos: Array.isArray(cap.paragrafos) ? cap.paragrafos : []
-      });
-      console.log('[3] Secao', i+1, 'OK -', cap.paragrafos ? cap.paragrafos.length : 0, 'paragrafos');
-    } catch (e) {
-      console.error('[3] Erro secao', i+1, ':', e.message);
-      // Fallback: dividir por linhas em branco
-      const paras = conteudo.split(/\n{2,}/).filter(p => p.trim()).map(p => ({
-        tipo: 'normal', texto: p.trim().replace(/\n/g, ' '), negrito: false
-      }));
-      capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: paras });
-      console.log('[3] Fallback -', paras.length, 'paragrafos');
-    }
-  }
-
-  return capitulos;
 }
 
 // ══════════════════════════════════════
@@ -473,17 +408,14 @@ async function executarDiagramacao(pedido) {
     const texto = await etapa1_lerLivro(arquivoPath);
     if (!texto || texto.length < 50) throw new Error('Arquivo sem conteudo de texto');
 
-    // ETAPA 2: Identificar estrutura (título, autor, seções)
-    const estruturaBase = await etapa2_identificarEstrutura(texto);
-    if (!estruturaBase.secoes || estruturaBase.secoes.length === 0) {
-      throw new Error('Nenhuma secao identificada no livro');
+    // ETAPAS 2+3: Estruturar livro completo em uma chamada
+    const estruturaBase = await etapa2e3_estruturarLivro(texto);
+    if (!estruturaBase.capitulos || estruturaBase.capitulos.length === 0) {
+      throw new Error('Nenhum capitulo identificado no livro');
     }
 
-    // ETAPA 3: Extrair conteúdo preservando original, negritos e numeração
-    const capitulos = await etapa3_extrairConteudo(texto, estruturaBase.secoes);
-
     // ETAPA 4: Revisão ortográfica e gramatical
-    const capitulosRevisados = await etapa4_revisar(capitulos);
+    const capitulosRevisados = await etapa4_revisar(estruturaBase.capitulos);
 
     // ETAPA 5: Diagramar o DOCX
     const estrutura = {
