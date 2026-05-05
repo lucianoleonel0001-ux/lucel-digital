@@ -435,6 +435,34 @@ app.post('/api/pedido/:id/cancelar', adminAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── DIAGNÓSTICO ──
+app.get('/api/diag/:id', adminAuth, async (req, res) => {
+  const pedidos = lerPedidos();
+  const p = pedidos.find(p => p.id === req.params.id);
+  if (!p) return res.status(404).json({ erro: 'Não encontrado' });
+  
+  const info = { pedido: p };
+  
+  if (p.arquivoOriginal) {
+    const fp = path.join(UPLOAD_DIR, p.arquivoOriginal);
+    info.arquivoExiste = fs.existsSync(fp);
+    info.arquivoPath = fp;
+    if (info.arquivoExiste) {
+      info.arquivoTamanho = fs.statSync(fp).size;
+      try {
+        const texto = await extrairTexto(fp);
+        info.textoExtraido = texto.substring(0, 500);
+        info.textoTamanho = texto.length;
+      } catch(e) {
+        info.erroExtracao = e.message;
+      }
+    }
+  }
+  
+  info.anthropicKey = ANTHROPIC_KEY ? 'configurada' : 'NAO configurada';
+  res.json(info);
+});
+
 // ── START ──
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
