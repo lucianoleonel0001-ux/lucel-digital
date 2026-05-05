@@ -306,22 +306,45 @@ async function gerarDocx(estrutura, pedido, outputPath) {
 }
 
 async function executarDiagramacao(pedido) {
-  console.log('[DIAG] Iniciando:', pedido.id);
+  console.log('=== [DIAG] INICIANDO DIAGRAMACAO ===');
+  console.log('[DIAG] ID:', pedido.id);
+  console.log('[DIAG] Titulo:', pedido.titulo);
+  console.log('[DIAG] Formato:', pedido.formato);
+  console.log('[DIAG] Arquivo:', pedido.arquivoOriginal);
+  console.log('[DIAG] ANTHROPIC_KEY configurada:', !!ANTHROPIC_KEY);
+  console.log('[DIAG] ANTHROPIC_KEY primeiros chars:', ANTHROPIC_KEY ? ANTHROPIC_KEY.substring(0,15) + '...' : 'VAZIA');
+
   const pedidos = lerPedidos();
   const idx = pedidos.findIndex(function(p) { return p.id === pedido.id; });
+
   try {
+    // PASSO 1: Verificar arquivo
     const arquivoPath = path.join(UPLOAD_DIR, pedido.arquivoOriginal);
+    console.log('[DIAG] PASSO 1 - Verificando arquivo:', arquivoPath);
     if (!fs.existsSync(arquivoPath)) throw new Error('Arquivo nao encontrado: ' + arquivoPath);
+    console.log('[DIAG] PASSO 1 - OK! Tamanho:', fs.statSync(arquivoPath).size, 'bytes');
 
+    // PASSO 2: Extrair texto
+    console.log('[DIAG] PASSO 2 - Extraindo texto...');
     const texto = await extrairTexto(arquivoPath);
-    if (!texto || texto.length < 30) throw new Error('Texto vazio');
+    console.log('[DIAG] PASSO 2 - OK! Chars extraidos:', texto ? texto.length : 0);
+    if (!texto || texto.length < 30) throw new Error('Texto vazio - chars: ' + (texto ? texto.length : 0));
 
+    // PASSO 3: Analisar estrutura
+    console.log('[DIAG] PASSO 3 - Analisando estrutura com Claude...');
     const estrutura = await analisarEstrutura(texto, pedido);
-    console.log('[DIAG] Capitulos:', estrutura.capitulos.length);
+    console.log('[DIAG] PASSO 3 - OK! Capitulos:', estrutura.capitulos ? estrutura.capitulos.length : 0);
+    console.log('[DIAG] PASSO 3 - Titulo:', estrutura.titulo);
+    console.log('[DIAG] PASSO 3 - Autor:', estrutura.autor);
 
+    // PASSO 4: Gerar DOCX
+    console.log('[DIAG] PASSO 4 - Gerando DOCX...');
     const docxPath = path.join(ENTREGA_DIR, pedido.id + '_diagramado.docx');
     await gerarDocx(estrutura, pedido, docxPath);
+    console.log('[DIAG] PASSO 4 - OK! DOCX gerado:', docxPath);
 
+    // PASSO 5: Salvar e notificar
+    console.log('[DIAG] PASSO 5 - Salvando e notificando cliente...');
     const token = crypto.randomBytes(16).toString('hex');
     pedidos[idx].status        = 'pronto';
     pedidos[idx].arquivoDocx   = path.basename(docxPath);
@@ -331,14 +354,22 @@ async function executarDiagramacao(pedido) {
     salvarPedidos(pedidos);
 
     const link = pedidos[idx].linkDownload;
+    console.log('[DIAG] PASSO 5 - Enviando email para:', pedido.email);
     await enviarEmail(pedido.email, 'Seu livro diagramado esta pronto! — Lucel Digital',
       '<p>Ola, <strong>' + pedido.nome + '</strong>!</p><p>Seu livro <em>' + pedido.titulo + '</em> esta pronto!</p><p><a href="' + link + '">BAIXAR MEU LIVRO</a></p>');
+    console.log('[DIAG] PASSO 5 - Enviando WhatsApp para:', pedido.whats);
     await enviarWhatsApp(pedido.whats, pedido.nome + ', seu livro "' + pedido.titulo + '" esta pronto! Baixe aqui: ' + link + ' — Lucel Digital');
-    console.log('[DIAG] Concluido:', pedido.id);
+    console.log('=== [DIAG] CONCLUIDO COM SUCESSO:', pedido.id, '===');
 
   } catch (e) {
-    console.error('[DIAG] Erro:', e.message);
-    if (idx !== -1) { pedidos[idx].status = 'erro'; pedidos[idx].erro = e.message; salvarPedidos(pedidos); }
+    console.error('=== [DIAG] ERRO FATAL ===');
+    console.error('[DIAG] Mensagem:', e.message);
+    console.error('[DIAG] Stack:', e.stack);
+    if (idx !== -1) { 
+      pedidos[idx].status = 'erro'; 
+      pedidos[idx].erro = e.message + ' | ' + (e.stack || '').substring(0, 200);
+      salvarPedidos(pedidos); 
+    }
   }
 }
 
