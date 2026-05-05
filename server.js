@@ -92,41 +92,83 @@ async function extrairTexto(filePath) {
   return '';
 }
 
+// ── DETECTAR SEÇÕES AUTOMATICAMENTE ──
+function detectarSecoes(texto) {
+  const linhas = texto.split('\n');
+  const secoes = [];
+  
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i].trim();
+    if (!linha || linha.length > 100) continue;
+    
+    // Padrões de títulos de seção
+    const ehTitulo = (
+      /^(PREFÁCIO|PREFACIO|INTRODUÇÃO|INTRODUCAO|CONCLUSÃO|CONCLUSAO|DEDICATÓRIA|DEDICATORIA|AGRADECIMENTOS?|APRESENTAÇÃO|APRESENTACAO)/i.test(linha) ||
+      /^CAP[IÍ]TULO\s+\d+/i.test(linha) ||
+      /^CAP[IÍ]TULO\s+[IVXLCDM]+/i.test(linha) ||
+      /^\d+[\.\-\–]\s+[A-ZÁÉÍÓÚÀÂÊÔÃÕÜ]/i.test(linha) ||
+      (linha === linha.toUpperCase() && linha.length > 5 && linha.length < 80 && /[A-ZÁÉÍÓÚÀÂÊÔÃÕÜ]{3,}/.test(linha))
+    );
+    
+    if (ehTitulo) {
+      // Verificar se há linhas em branco antes (isolado)
+      const linhaAnterior = i > 0 ? linhas[i-1].trim() : '';
+      if (linhaAnterior === '' || i === 0 || secoes.length === 0) {
+        secoes.push({ titulo: linha, indice: texto.indexOf(linha) });
+      }
+    }
+  }
+  
+  return secoes;
+}
+
 // ── ANALISAR ESTRUTURA COM CLAUDE ──
 async function analisarEstrutura(texto, pedido) {
 
-  // ETAPA 1: Ler o livro todo e identificar estrutura
-  const resp1 = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: 'Leia este livro e retorne APENAS JSON (sem markdown):\n{"titulo":"...","subtitulo":"...","autor":"...","credencial":"...","secoes":["TITULO EXATO DA SEÇÃO 1","TITULO EXATO DA SEÇÃO 2"]}\n\nIdentifique TODAS as seções: prefácio, capítulos, conclusão, etc. Use o título EXATO como aparece no texto.\n\nTEXTO:\n' + texto.substring(0, 50000) }]
-    })
-  });
-  const d1 = await resp1.json();
-  const raw1 = (d1.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim();
-  let base;
-  try { base = JSON.parse(raw1); } catch { base = { titulo: pedido.titulo, subtitulo: '', autor: '', credencial: '', secoes: [] }; }
-  console.log('[DIAG] Etapa1 - Secoes:', base.secoes?.length || 0);
+  // Detectar seções automaticamente
+  const secoesDetectadas = detectarSecoes(texto);
+  console.log('[DIAG] Seções detectadas automaticamente:', secoesDetectadas.length, secoesDetectadas.map(s => s.titulo));
 
-  // ETAPA 2: Processar cada seção com seu conteúdo
+  // Se não detectou nada, pedir ao Claude
+  let secoes = secoesDetectadas;
+  if (secoes.length === 0) {
+    const resp1 = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: 'Liste os títulos de todos os capítulos/seções deste livro. Retorne APENAS JSON: {"secoes":["titulo1","titulo2"]}\n\nTEXTO:\n' + texto.substring(0, 20000) }]
+      })
+    });
+    const d1 = await resp1.json();
+    try {
+      const parsed = JSON.parse((d1.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+      secoes = (parsed.secoes || []).map(t => ({ titulo: t, indice: texto.indexOf(t.substring(0,30)) }));
+    } catch {}
+  }
+
+  // Identificar título, autor do início do livro
+  const inicioTexto = texto.substring(0, 2000);
+  const linhasInicio = inicioTexto.split('\n').map(l => l.trim()).filter(l => l.length > 0 && l.length < 100);
+  const tituloLivro = linhasInicio[0] || pedido.titulo;
+  
+  // Buscar autor no final do texto
+  const finalTexto = texto.substring(Math.max(0, texto.length - 3000));
+  let autor = '';
+  const matchAutor = finalTexto.match(/Pr\.?\s+[A-Z][a-zÁÉÍÓÚÀÂÊÔÃÕÜ]+|Pastor\s+[A-Z][a-zÁÉÍÓÚÀÂÊÔÃÕÜ]+|Dr\.?\s+[A-Z]/);
+  if (matchAutor) autor = matchAutor[0];
+
+  // Processar cada seção com Claude
   const capitulos = [];
-  const secoes = base.secoes || [];
-
   for (let i = 0; i < secoes.length; i++) {
-    const tituloSec = secoes[i];
-    const proximaSec = secoes[i + 1];
+    const sec = secoes[i];
+    const proxSec = secoes[i + 1];
 
-    const busca = tituloSec.substring(0, 40);
-    let idxInicio = texto.indexOf(busca);
-    if (idxInicio < 0) idxInicio = 0;
-
+    let idxInicio = sec.indice >= 0 ? sec.indice : texto.indexOf(sec.titulo.substring(0, 30));
     let idxFim = texto.length;
-    if (proximaSec) {
-      const buscaProx = proximaSec.substring(0, 40);
-      const idx = texto.indexOf(buscaProx, idxInicio + busca.length);
+    if (proxSec) {
+      const idx = proxSec.indice >= 0 ? proxSec.indice : texto.indexOf(proxSec.titulo.substring(0, 30), idxInicio + 10);
       if (idx > idxInicio) idxFim = idx;
     }
 
@@ -138,22 +180,22 @@ async function analisarEstrutura(texto, pedido) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8000,
-        messages: [{ role: 'user', content: 'Retorne APENAS JSON (sem markdown):\n{"numero":"' + (i + 1) + '","titulo":"' + tituloSec.replace(/"/g, '\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\nREGRAS:\n1. NAO adicione nem remova palavras\n2. Una linhas que sao continuacao do mesmo paragrafo\n3. tipo: normal ou subtitulo\n4. Inclua TODOS os paragrafos\n\nTEXTO DA SECAO:\n' + textoSec }]
+        messages: [{ role: 'user', content: 'Processe este trecho e retorne APENAS JSON (sem markdown):\n{"numero":"' + (i+1) + '","titulo":"' + sec.titulo.replace(/"/g,'\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\nREGRAS:\n1. NAO adicione nem remova palavras\n2. Una linhas que sao continuacao do mesmo paragrafo\n3. tipo normal ou subtitulo\n4. Inclua TODOS os paragrafos\n\nTEXTO:\n' + textoSec }]
       })
     });
 
     const d2 = await resp2.json();
     const raw2 = (d2.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim();
     try { capitulos.push(JSON.parse(raw2)); }
-    catch { capitulos.push({ numero: String(i + 1), titulo: tituloSec, paragrafos: [] }); }
-    console.log('[DIAG] Secao', i + 1, '/', secoes.length, 'processada');
+    catch { capitulos.push({ numero: String(i+1), titulo: sec.titulo, paragrafos: [] }); }
+    console.log('[DIAG] Seção', i+1, '/', secoes.length, 'processada:', sec.titulo.substring(0,40));
   }
 
   return {
-    titulo: base.titulo || pedido.titulo,
-    subtitulo: base.subtitulo || '',
-    autor: base.autor || '',
-    credencial: base.credencial || '',
+    titulo: tituloLivro,
+    subtitulo: '',
+    autor,
+    credencial: '',
     capitulos
   };
 }
