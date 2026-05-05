@@ -1,3 +1,5 @@
+require('dotenv').config();
+const fetch      = require('node-fetch');
 const express    = require('express');
 const multer     = require('multer');
 const nodemailer = require('nodemailer');
@@ -5,6 +7,7 @@ const fs         = require('fs');
 const path       = require('path');
 const crypto     = require('crypto');
 const { execSync } = require('child_process');
+const { Document, Packer, Paragraph, TextRun, Header, Footer, AlignmentType, PageNumber, PageBreak, BorderStyle, TabStopType } = require('docx');
 const mammoth    = require('mammoth');
 const pdfParse   = require('pdf-parse');
 
@@ -144,139 +147,118 @@ async function gerarDocx(estrutura, pedido, outputPath) {
   const autor   = estrutura.autor     || '';
   const cred    = estrutura.credencial|| '';
   const caps    = estrutura.capitulos || [];
+  const PRETO   = '000000';
+  const FONTE   = 'Palatino Linotype';
 
-  const scriptPath = `/tmp/diag_${pedido.id}.js`;
-
-  const script = `
-const { Document, Packer, Paragraph, TextRun, Header, Footer,
-        AlignmentType, PageNumber, PageBreak, BorderStyle, TabStopType } = require('docx');
-const fs = require('fs');
-
-const fmt    = ${JSON.stringify(fmt)};
-const PRETO  = '000000';
-const FONTE  = 'Palatino Linotype';
-const titulo = ${JSON.stringify(titulo)};
-const subtit = ${JSON.stringify(subtit)};
-const autor  = ${JSON.stringify(autor)};
-const cred   = ${JSON.stringify(cred)};
-const caps   = ${JSON.stringify(caps)};
-
-function linhaTenue(a=0,d=0){
-  return new Paragraph({ spacing:{before:a,after:d}, border:{bottom:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}}, children:[new TextRun('')] });
-}
-function linhaEspessa(a=0,d=0){
-  return new Paragraph({ spacing:{before:a,after:d}, border:{bottom:{style:BorderStyle.SINGLE,size:8,color:PRETO,space:1}}, children:[new TextRun('')] });
-}
-function br(){ return new Paragraph({ children:[new PageBreak()], spacing:{before:0,after:0} }); }
-function vazio(){ return new Paragraph({ spacing:{before:0,after:0}, children:[new TextRun('')] }); }
-
-function runs(texto, boldForcado=false){
-  const parts = texto.split(/(\\*\\*.*?\\*\\*)/g);
-  return parts.filter(Boolean).map(p => {
-    const isBold = boldForcado || /^\\*\\*.*\\*\\*$/.test(p);
-    return new TextRun({ text: p.replace(/\\*\\*/g,''), font:FONTE, size:fmt.corpoSize, bold:isBold, color:PRETO });
-  });
-}
-
-function pCorpo(texto, negrito=false){
-  return new Paragraph({
-    alignment: AlignmentType.JUSTIFIED,
-    spacing:{ before:0, after:0, line:276, lineRule:'auto' },
-    indent:{ firstLine:fmt.recuo },
-    children: runs(texto, negrito)
-  });
-}
-function pTitulo(texto){
-  return new Paragraph({
-    alignment: AlignmentType.LEFT,
-    spacing:{ before:280, after:800 },
-    children:[new TextRun({ text:texto.toUpperCase(), font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })]
-  });
-}
-function pSubtitulo(texto){
-  return new Paragraph({
-    alignment: AlignmentType.LEFT,
-    spacing:{ before:200, after:400 },
-    children:[new TextRun({ text:texto, font:FONTE, size:fmt.tituloSize-4, bold:true, color:PRETO })]
-  });
-}
-
-const cabecalho = new Header({ children:[
-  new Paragraph({
-    spacing:{before:0,after:0},
-    tabStops:[{type:TabStopType.RIGHT, position:fmt.pageW-fmt.mEsq-fmt.mDir}],
-    border:{bottom:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
-    children:[
-      new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:fmt.cabSize, allCaps:true, color:PRETO }),
-      new TextRun({ text:'\\t' }),
-      new TextRun({ text:autor, font:FONTE, size:fmt.cabSize, italics:true, color:PRETO })
-    ]
-  })
-]});
-
-const rodape = new Footer({ children:[
-  new Paragraph({
-    alignment:AlignmentType.CENTER,
-    spacing:{before:0,after:0},
-    border:{top:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
-    children:[new TextRun({ children:[PageNumber.CURRENT], font:FONTE, size:fmt.rodSize, color:PRETO })]
-  })
-]});
-
-const rosto = [
-  vazio(),vazio(),vazio(),vazio(),
-  new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:280}, children:[new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:56, bold:true, color:PRETO })] }),
-  linhaEspessa(0,280),
-  ...(subtit ? [new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160}, children:[new TextRun({ text:subtit, font:FONTE, size:36, italics:true, color:PRETO })] })] : []),
-  linhaTenue(0,160),
-  new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160}, children:[new TextRun({ text:'— —', font:FONTE, size:28, color:PRETO })] }),
-  linhaTenue(0,480),
-  new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:120}, children:[new TextRun({ text:autor.toUpperCase(), font:FONTE, size:44, bold:true, color:PRETO })] }),
-  ...(cred ? [new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:0}, children:[new TextRun({ text:cred, font:FONTE, size:20, italics:true, color:PRETO })] })] : []),
-  br()
-];
-
-const sumario = [
-  linhaTenue(0,200),
-  new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:400}, children:[new TextRun({ text:'SUMÁRIO', font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })] }),
-  ...caps.map(cap => new Paragraph({
-    alignment:AlignmentType.LEFT,
-    spacing:{before:120,after:60},
-    children:[new TextRun({ text:(cap.numero ? cap.numero+'. ':'')+cap.titulo, font:FONTE, size:24, color:PRETO })]
-  })),
-  br()
-];
-
-const conteudo = [];
-caps.forEach((cap, i) => {
-  conteudo.push(linhaTenue(0,200));
-  conteudo.push(pTitulo((cap.numero ? cap.numero+'. ':'')+cap.titulo));
-  (cap.paragrafos||[]).forEach(p => {
-    if(p.tipo==='subtitulo') conteudo.push(pSubtitulo(p.texto));
-    else conteudo.push(pCorpo(p.texto, p.negrito||false));
-  });
-  if(i < caps.length-1) conteudo.push(br());
-});
-
-const doc = new Document({
-  styles:{ default:{ document:{ run:{ font:FONTE, size:24, color:PRETO } } } },
-  sections:[{
-    properties:{ page:{ size:{ width:fmt.pageW, height:fmt.pageH }, margin:{ top:fmt.mTop, bottom:fmt.mBot, left:fmt.mEsq, right:fmt.mDir, header:fmt.mCab, footer:fmt.mRod } } },
-    headers:{ default:cabecalho },
-    footers:{ default:rodape },
-    children:[...rosto, ...sumario, ...conteudo]
-  }]
-});
-
-Packer.toBuffer(doc).then(buf => { fs.writeFileSync(${JSON.stringify(outputPath)}, buf); console.log('OK'); });
-`;
-
-  fs.writeFileSync(scriptPath, script);
-  try {
-    execSync(`node ${scriptPath}`, { maxBuffer: 50*1024*1024, timeout: 120000 });
-  } finally {
-    if (fs.existsSync(scriptPath)) fs.unlinkSync(scriptPath);
+  function linhaTenue(a=0,d=0){
+    return new Paragraph({ spacing:{before:a,after:d}, border:{bottom:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}}, children:[new TextRun('')] });
   }
+  function linhaEspessa(a=0,d=0){
+    return new Paragraph({ spacing:{before:a,after:d}, border:{bottom:{style:BorderStyle.SINGLE,size:8,color:PRETO,space:1}}, children:[new TextRun('')] });
+  }
+  function br(){ return new Paragraph({ children:[new PageBreak()], spacing:{before:0,after:0} }); }
+  function vazio(){ return new Paragraph({ spacing:{before:0,after:0}, children:[new TextRun('')] }); }
+
+  function runs(texto, boldForcado=false){
+    const parts = texto.split(/(\*\*.*?\*\*)/g);
+    return parts.filter(Boolean).map((p,i) => {
+      const isBold = boldForcado || /^\*\*.*\*\*$/.test(p);
+      return new TextRun({ text: p.replace(/\*\*/g,''), font:FONTE, size:fmt.corpoSize, bold:isBold, color:PRETO });
+    });
+  }
+  function pCorpo(texto, negrito=false){
+    return new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing:{ before:0, after:0, line:276, lineRule:'auto' },
+      indent:{ firstLine:fmt.recuo },
+      children: runs(texto, negrito)
+    });
+  }
+  function pTitulo(texto){
+    return new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing:{ before:280, after:800 },
+      children:[new TextRun({ text:texto.toUpperCase(), font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })]
+    });
+  }
+  function pSubtitulo(texto){
+    return new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing:{ before:200, after:400 },
+      children:[new TextRun({ text:texto, font:FONTE, size:fmt.tituloSize-4, bold:true, color:PRETO })]
+    });
+  }
+
+  const cabecalho = new Header({ children:[
+    new Paragraph({
+      spacing:{before:0,after:0},
+      tabStops:[{type:TabStopType.RIGHT, position:fmt.pageW-fmt.mEsq-fmt.mDir}],
+      border:{bottom:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
+      children:[
+        new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:fmt.cabSize, allCaps:true, color:PRETO }),
+        new TextRun({ text:'\t' }),
+        new TextRun({ text:autor, font:FONTE, size:fmt.cabSize, italics:true, color:PRETO })
+      ]
+    })
+  ]});
+
+  const rodape = new Footer({ children:[
+    new Paragraph({
+      alignment:AlignmentType.CENTER,
+      spacing:{before:0,after:0},
+      border:{top:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
+      children:[new TextRun({ children:[PageNumber.CURRENT], font:FONTE, size:fmt.rodSize, color:PRETO })]
+    })
+  ]});
+
+  const rosto = [
+    vazio(),vazio(),vazio(),vazio(),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:280}, children:[new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:56, bold:true, color:PRETO })] }),
+    linhaEspessa(0,280),
+    ...(subtit ? [new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160}, children:[new TextRun({ text:subtit, font:FONTE, size:36, italics:true, color:PRETO })] })] : []),
+    linhaTenue(0,160),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160}, children:[new TextRun({ text:'— —', font:FONTE, size:28, color:PRETO })] }),
+    linhaTenue(0,480),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:120}, children:[new TextRun({ text:autor.toUpperCase(), font:FONTE, size:44, bold:true, color:PRETO })] }),
+    ...(cred ? [new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:0}, children:[new TextRun({ text:cred, font:FONTE, size:20, italics:true, color:PRETO })] })] : []),
+    br()
+  ];
+
+  const sumario = [
+    linhaTenue(0,200),
+    new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:400}, children:[new TextRun({ text:'SUMÁRIO', font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })] }),
+    ...caps.map(cap => new Paragraph({
+      alignment:AlignmentType.LEFT,
+      spacing:{before:120,after:60},
+      children:[new TextRun({ text:(cap.numero ? cap.numero+'. ':'')+cap.titulo, font:FONTE, size:24, color:PRETO })]
+    })),
+    br()
+  ];
+
+  const conteudo = [];
+  caps.forEach((cap, i) => {
+    conteudo.push(linhaTenue(0,200));
+    conteudo.push(pTitulo((cap.numero ? cap.numero+'. ':'')+cap.titulo));
+    (cap.paragrafos||[]).forEach(p => {
+      if(p.tipo==='subtitulo') conteudo.push(pSubtitulo(p.texto));
+      else conteudo.push(pCorpo(p.texto, p.negrito||false));
+    });
+    if(i < caps.length-1) conteudo.push(br());
+  });
+
+  const doc = new Document({
+    styles:{ default:{ document:{ run:{ font:FONTE, size:24, color:PRETO } } } },
+    sections:[{
+      properties:{ page:{ size:{ width:fmt.pageW, height:fmt.pageH }, margin:{ top:fmt.mTop, bottom:fmt.mBot, left:fmt.mEsq, right:fmt.mDir, header:fmt.mCab, footer:fmt.mRod } } },
+      headers:{ default:cabecalho },
+      footers:{ default:rodape },
+      children:[...rosto, ...sumario, ...conteudo]
+    }]
+  });
+
+  const buf = await Packer.toBuffer(doc);
+  fs.writeFileSync(outputPath, buf);
+  console.log('[DOCX] Gerado:', outputPath);
 }
 
 // ── GERAR PDF ──
@@ -332,7 +314,7 @@ async function executarDiagramacao(pedido) {
 
   } catch (e) {
     console.error('[DIAG] Erro:', e.message);
-    if (idx !== -1) { pedidos[idx].status = 'erro'; pedidos[idx].erro = e.message; salvarPedidos(pedidos); }
+    if (idx !== -1) { pedidos[idx].status = 'erro'; pedidos[idx].erro = e.message + ' | stack: ' + (e.stack||'').substring(0,300); salvarPedidos(pedidos); }
   }
 }
 
