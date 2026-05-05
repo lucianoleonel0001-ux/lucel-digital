@@ -174,7 +174,7 @@ async function etapa2e3_estruturarLivro(texto) {
     '5. tipo pode ser "normal" ou "subtitulo"\n' +
     '6. Inclua TODOS os paragrafos sem pular nenhum\n' +
     '7. Prefacio, introducao, conclusao = capitulos separados\n\n' +
-    'LIVRO COMPLETO:\n' + texto.substring(0, 200000);
+    'LIVRO COMPLETO:\n' + texto.substring(0, 80000);
 
   const resposta = await chamarClaude(prompt, 16000);
   const estrutura = JSON.parse(resposta.replace(/```json|```/g, '').trim());
