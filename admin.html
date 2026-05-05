@@ -213,7 +213,7 @@ function renderizarPedidos(){
           '<div class="info-item"><label>Formato</label><span>'+p.formato+'</span></div>'+
           '<div class="info-item"><label>Valor</label><span>R$ '+p.preco+',00</span></div>'+
         '</div>'+
-        (p.arquivoOriginal?'<div style="margin-bottom:16px"><a href="#" onclick="baixarArquivo(''+p.id+'');return false;" style="font-size:13px;color:#c9a96e;text-decoration:none">📄 Baixar arquivo do cliente</a></div>':'')+
+        (p.arquivoOriginal?'<div style="margin-bottom:16px"><a href="#" onclick="baixarArquivo(\''+p.id+'\');return false;" style="font-size:13px;color:#c9a96e;text-decoration:none">📄 Baixar arquivo do cliente</a></div>':'')+
         '<div class="acoes">'+
           (p.status==='aguardando'?'<button class="btn btn-green btn-sm" onclick="liberar(\''+p.id+'\')">✓ Liberar serviço</button>':'')+
           (p.status==='liberado'?'<div class="upload-entrega"><label>ENVIAR ARQUIVO DIAGRAMADO</label><input type="file" id="file'+p.id+'" accept=".docx,.pdf"><button class="btn btn-sm" onclick="entregarArquivo(\''+p.id+'\')">Entregar ao cliente →</button></div>':'')+
