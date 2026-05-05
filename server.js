@@ -136,51 +136,78 @@ async function etapa1_lerLivro(filePath) {
     console.log('[1] PDF chars:', data.text.length);
     return data.text || '';
   }
-  const result = await mammoth.convertToHtml({ path: filePath });
-  console.log('[1] DOCX chars:', result.value.length);
-  return result.value || '';
+  // Usar extractRawText para busca de secoes, mas preservar info de negrito via HTML
+  const resultTexto = await mammoth.extractRawText({ path: filePath });
+  const resultHtml  = await mammoth.convertToHtml({ path: filePath });
+  // Marcar negritos no texto plano baseado no HTML
+  const htmlComNegrito = resultHtml.value
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+  console.log('[1] DOCX chars:', htmlComNegrito.length);
+  return htmlComNegrito || resultTexto.value || '';
 }
 
 // ══════════════════════════════════════
-// ETAPAS 2+3 — UMA ÚNICA CHAMADA
-// Claude lê o livro todo e retorna
-// estrutura completa com todo o conteúdo
+// ETAPA 2 — IDENTIFICAR ESTRUTURA
 // ══════════════════════════════════════
 async function etapa2e3_estruturarLivro(texto) {
-  console.log('[2+3] Estruturando livro completo...');
+  console.log('[2] Identificando estrutura...');
 
-  const prompt =
-    'Organize este livro em capitulos e retorne APENAS JSON valido (sem markdown):\n\n' +
-    '{\n' +
-    '  "titulo": "titulo principal do livro",\n' +
-    '  "subtitulo": "subtitulo se houver, senao vazio",\n' +
-    '  "autor": "nome do autor, senao vazio",\n' +
-    '  "credencial": "ex: Pastor, Dr. — se houver, senao vazio",\n' +
-    '  "capitulos": [\n' +
-    '    {\n' +
-    '      "numero": "1",\n' +
-    '      "titulo": "TITULO EXATO DO CAPITULO",\n' +
-    '      "paragrafos": [\n' +
-    '        {"tipo": "normal", "texto": "texto exato do paragrafo", "negrito": false}\n' +
-    '      ]\n' +
-    '    }\n' +
-    '  ]\n' +
-    '}\n\n' +
-    'REGRAS CRITICAS:\n' +
-    '1. NAO adicione nem remova NENHUMA palavra do texto original\n' +
-    '2. Preserve negritos marcando **texto** inline\n' +
-    '3. Mantenha numeracao exata de titulos e subtitulos\n' +
-    '4. Corrija quebras de linha indevidas (una linhas que continuam o mesmo paragrafo)\n' +
-    '5. tipo pode ser "normal" ou "subtitulo"\n' +
-    '6. Inclua TODOS os paragrafos sem pular nenhum\n' +
-    '7. Prefacio, introducao, conclusao = capitulos separados\n\n' +
-    'LIVRO COMPLETO:\n' + texto.substring(0, 80000);
+  // PASSO A: Identificar titulo, autor e secoes
+  const promptA =
+    'Leia este livro e retorne APENAS JSON valido:\n' +
+    '{"titulo":"...","subtitulo":"...","autor":"...","credencial":"...","secoes":["titulo exato 1","titulo exato 2"]}\n\n' +
+    'Liste TODAS as secoes: prefacio, introducao, capitulos, conclusao.\n\n' +
+    'LIVRO:\n' + texto.substring(0, 60000);
 
-  const resposta = await chamarClaude(prompt, 16000);
-  const estrutura = JSON.parse(resposta.replace(/```json|```/g, '').trim());
-  console.log('[2+3] Titulo:', estrutura.titulo);
-  console.log('[2+3] Capitulos:', estrutura.capitulos ? estrutura.capitulos.length : 0);
-  return estrutura;
+  const respostaA = await chamarClaude(promptA, 3000);
+  const base = JSON.parse(respostaA.replace(/```json|```/g, '').trim());
+  console.log('[2] Titulo:', base.titulo, '| Secoes:', base.secoes ? base.secoes.length : 0);
+
+  // PASSO B: Processar cada secao separadamente
+  const capitulos = [];
+  const secoes = base.secoes || [];
+
+  for (let i = 0; i < secoes.length; i++) {
+    const titulo = secoes[i];
+    const proximo = secoes[i+1] || null;
+
+    const busca = titulo.substring(0, 35);
+    let inicio = texto.indexOf(busca);
+    if (inicio < 0) { capitulos.push({ numero: String(i+1), titulo, paragrafos: [] }); continue; }
+
+    const fimTitulo = texto.indexOf('\n', inicio);
+    const inicioConteudo = fimTitulo > 0 ? fimTitulo + 1 : inicio;
+    let fim = texto.length;
+    if (proximo) {
+      const idx = texto.indexOf(proximo.substring(0, 35), inicioConteudo + 10);
+      if (idx > inicioConteudo) fim = idx;
+    }
+
+    const conteudo = texto.substring(inicioConteudo, Math.min(fim, inicioConteudo + 8000)).trim();
+    if (!conteudo || conteudo.length < 5) { capitulos.push({ numero: String(i+1), titulo, paragrafos: [] }); continue; }
+
+    const promptB =
+      'Retorne APENAS JSON valido com os paragrafos desta secao:\n' +
+      '{"numero":"' + (i+1) + '","titulo":"' + titulo.replace(/"/g, '\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\n' +
+      'REGRAS: nao adicione palavras, corrija quebras de linha, preserve negritos com **texto**.\n\n' +
+      'TEXTO:\n' + conteudo;
+
+    try {
+      const respostaB = await chamarClaude(promptB, 4000);
+      const cap = JSON.parse(respostaB.replace(/```json|```/g, '').trim());
+      capitulos.push({ numero: String(i+1), titulo: cap.titulo || titulo, paragrafos: cap.paragrafos || [] });
+      console.log('[2] Secao', i+1, 'OK -', cap.paragrafos ? cap.paragrafos.length : 0, 'paragrafos');
+    } catch(e) {
+      console.error('[2] Erro secao', i+1, e.message);
+      const paras = conteudo.split(/\n{2,}/).filter(p=>p.trim()).map(p=>({tipo:'normal',texto:p.trim().replace(/\n/g,' '),negrito:false}));
+      capitulos.push({ numero: String(i+1), titulo, paragrafos: paras });
+    }
+  }
+
+  return { titulo: base.titulo || '', subtitulo: base.subtitulo || '', autor: base.autor || '', credencial: base.credencial || '', capitulos };
 }
 
 // ══════════════════════════════════════
