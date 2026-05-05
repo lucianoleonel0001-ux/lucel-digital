@@ -53,11 +53,46 @@ async function enviarWhatsApp(numero, msg) {
   catch (e) { console.error('[WHATS]', e.message); }
 }
 
+// ══════════════════════════════════════
+// ESPECIFICAÇÕES DE FORMATO
+// Baseado no livro de referência 14x21
+// ══════════════════════════════════════
 const FORMATOS = {
-  '14x21': { pageW:7938,  pageH:11906, mTop:992,  mBot:992,  mEsq:1134, mDir:1134, mCab:482, mRod:482, corpoSize:24, tituloSize:32, cabSize:14, rodSize:20, recuo:482 },
-  '16x23': { pageW:9072,  pageH:13032, mTop:1134, mBot:1134, mEsq:1361, mDir:1361, mCab:567, mRod:567, corpoSize:24, tituloSize:32, cabSize:14, rodSize:20, recuo:567 },
-  'A4':    { pageW:11906, pageH:16838, mTop:1418, mBot:1418, mEsq:1701, mDir:1701, mCab:709, mRod:709, corpoSize:24, tituloSize:32, cabSize:14, rodSize:20, recuo:709 }
+  '14x21': {
+    pageW: 7937, pageH: 11905,
+    mTop: 992, mBot: 992, mEsq: 1134, mDir: 1134,
+    mCab: 482, mRod: 482,
+    // Tamanhos em half-points (1pt = 2 half-pts)
+    corpoSz: 24,      // 12pt
+    tituloCapSz: 32,  // 16pt
+    sumarioTitSz: 32, // 16pt
+    sumarioItemSz: 24,// 12pt
+    capaMainSz: 90,   // 45pt
+    capaSubSz: 36,    // 18pt
+    capaAutorSz: 44,  // 22pt
+    capaCredSz: 20,   // 10pt
+    cabSz: 14,        // 7pt
+    rodSz: 20,        // 10pt
+    recuo: 482        // 0.85cm
+  },
+  '16x23': {
+    pageW: 9072, pageH: 13032,
+    mTop: 1134, mBot: 1134, mEsq: 1304, mDir: 1304,
+    mCab: 567, mRod: 567,
+    corpoSz: 24, tituloCapSz: 32, sumarioTitSz: 32, sumarioItemSz: 24,
+    capaMainSz: 90, capaSubSz: 36, capaAutorSz: 44, capaCredSz: 20,
+    cabSz: 14, rodSz: 20, recuo: 567
+  },
+  'A4': {
+    pageW: 11906, pageH: 16838,
+    mTop: 1418, mBot: 1418, mEsq: 1701, mDir: 1701,
+    mCab: 709, mRod: 709,
+    corpoSz: 24, tituloCapSz: 32, sumarioTitSz: 32, sumarioItemSz: 24,
+    capaMainSz: 90, capaSubSz: 36, capaAutorSz: 44, capaCredSz: 20,
+    cabSz: 14, rodSz: 20, recuo: 709
+  }
 };
+
 function getFmt(formato) {
   if (!formato) return FORMATOS['14x21'];
   if (formato.includes('16')) return FORMATOS['16x23'];
@@ -65,7 +100,9 @@ function getFmt(formato) {
   return FORMATOS['14x21'];
 }
 
-// ── CHAMAR CLAUDE API ──
+// ══════════════════════════════════════
+// CHAMAR CLAUDE
+// ══════════════════════════════════════
 async function chamarClaude(prompt, maxTokens) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -81,149 +118,185 @@ async function chamarClaude(prompt, maxTokens) {
     })
   });
   const data = await resp.json();
-  if (data.error) throw new Error('API Claude: ' + data.error.message);
-  if (!data.content || !data.content[0]) throw new Error('API Claude: resposta vazia - ' + JSON.stringify(data).substring(0, 200));
+  if (data.error) throw new Error('API: ' + data.error.message);
+  if (!data.content || !data.content[0]) throw new Error('API: sem resposta - ' + JSON.stringify(data).substring(0, 150));
   return data.content[0].text;
 }
 
-// ══════════════════════════════════════════
+// ══════════════════════════════════════
 // ETAPA 1 — LER O LIVRO COMPLETO
-// Extrai todo o texto do arquivo preservando
-// a estrutura com HTML para capturar negritos
-// ══════════════════════════════════════════
+// Extrai texto e HTML (para negritos)
+// ══════════════════════════════════════
 async function etapa1_lerLivro(filePath) {
-  console.log('[ETAPA1] Lendo arquivo:', path.basename(filePath));
+  console.log('[1] Lendo:', path.basename(filePath));
   const ext = path.extname(filePath).toLowerCase();
-
   if (ext === '.pdf') {
     const buf = fs.readFileSync(filePath);
     const data = await pdfParse(buf);
-    const texto = data.text || '';
-    console.log('[ETAPA1] PDF - chars:', texto.length);
-    return { texto, html: null };
-  } else {
-    // Para DOCX: extrair HTML para preservar negritos, e texto limpo para análise
-    const resultHtml  = await mammoth.convertToHtml({ path: filePath });
-    const resultTexto = await mammoth.extractRawText({ path: filePath });
-    console.log('[ETAPA1] DOCX - chars:', resultTexto.value.length);
-    return { texto: resultTexto.value, html: resultHtml.value };
+    console.log('[1] PDF chars:', data.text.length);
+    return data.text || '';
   }
+  const result = await mammoth.extractRawText({ path: filePath });
+  console.log('[1] DOCX chars:', result.value.length);
+  return result.value || '';
 }
 
-// ══════════════════════════════════════════
-// ETAPA 2 — IDENTIFICAR A ESTRUTURA
-// Claude lê o livro todo e identifica:
-// título, autor, credencial, lista de seções
-// ══════════════════════════════════════════
+// ══════════════════════════════════════
+// ETAPA 2 — IDENTIFICAR ESTRUTURA
+// Claude lê tudo e identifica:
+// título, subtítulo, autor, credencial,
+// e lista de todas as seções
+// ══════════════════════════════════════
 async function etapa2_identificarEstrutura(texto) {
-  console.log('[ETAPA2] Identificando estrutura...');
-
+  console.log('[2] Identificando estrutura...');
   const prompt =
-    'Leia este livro completo e retorne APENAS JSON valido (sem markdown):\n' +
-    '{"titulo":"titulo exato do livro","autor":"nome completo do autor ou vazio","credencial":"ex: Pastor, Dr. ou vazio","secoes":["titulo exato da secao 1","titulo exato da secao 2"]}\n\n' +
+    'Leia este livro e retorne APENAS JSON valido (sem markdown, sem explicacao):\n\n' +
+    '{\n' +
+    '  "titulo": "titulo principal do livro",\n' +
+    '  "subtitulo": "subtitulo se houver, senao string vazia",\n' +
+    '  "autor": "nome do autor se encontrado, senao vazio",\n' +
+    '  "credencial": "ex: Pastor, Dr., Professor — se houver, senao vazio",\n' +
+    '  "secoes": ["titulo exato da secao 1", "titulo exato da secao 2"]\n' +
+    '}\n\n' +
     'INSTRUCOES:\n' +
     '- Use o titulo EXATO como aparece no texto\n' +
-    '- Liste TODAS as secoes: prefacio, introducao, capitulos, conclusao, etc\n' +
-    '- Mantenha a numeracao exata dos capitulos (ex: "CAPITULO 1 - NOME")\n\n' +
-    'LIVRO:\n' + texto.substring(0, 45000);
+    '- Liste TODAS as secoes em ordem: prefacio, introducao, capitulos, conclusao, etc\n' +
+    '- Mantenha numeracao exata dos capitulos\n\n' +
+    'LIVRO:\n' + texto.substring(0, 40000);
 
-  const resposta = await chamarClaude(prompt, 3000);
+  const resposta = await chamarClaude(prompt, 2000);
   const estrutura = JSON.parse(resposta.replace(/```json|```/g, '').trim());
-  console.log('[ETAPA2] Titulo:', estrutura.titulo);
-  console.log('[ETAPA2] Autor:', estrutura.autor);
-  console.log('[ETAPA2] Secoes:', estrutura.secoes ? estrutura.secoes.length : 0);
+  console.log('[2] Titulo:', estrutura.titulo);
+  console.log('[2] Secoes:', estrutura.secoes ? estrutura.secoes.length : 0);
   return estrutura;
 }
 
-// ══════════════════════════════════════════
-// ETAPA 3 — EXTRAIR CONTEÚDO DE CADA SEÇÃO
-// Para cada seção: extrai parágrafos preservando
-// texto original, negritos e numeração
-// ══════════════════════════════════════════
-async function etapa3_extrairConteudo(texto, html, secoes) {
-  console.log('[ETAPA3] Processando', secoes.length, 'secoes...');
+// ══════════════════════════════════════
+// ETAPA 3 — EXTRAIR CONTEÚDO
+// Para cada seção, extrai parágrafos
+// preservando texto original, negritos,
+// numeração e corrigindo quebras de linha
+// ══════════════════════════════════════
+async function etapa3_extrairConteudo(texto, secoes) {
+  console.log('[3] Processando', secoes.length, 'secoes...');
   const capitulos = [];
 
   for (let i = 0; i < secoes.length; i++) {
     const titulo = secoes[i];
     const proximo = secoes[i + 1] || null;
 
-    // Localizar o texto desta seção
-    const busca = titulo.substring(0, 35);
+    // Localizar seção no texto
+    const busca = titulo.substring(0, 40);
     let inicio = texto.indexOf(busca);
     if (inicio < 0) {
-      console.log('[ETAPA3] Secao', i+1, 'nao encontrada:', busca);
+      console.log('[3] Secao', i+1, 'nao encontrada');
       capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: [] });
       continue;
     }
 
-    // Pular o título, pegar só o conteúdo
+    // Pular o título para pegar só o conteúdo
     const fimTitulo = texto.indexOf('\n', inicio);
     const inicioConteudo = fimTitulo > 0 ? fimTitulo + 1 : inicio;
 
     let fim = texto.length;
     if (proximo) {
-      const buscaProx = proximo.substring(0, 35);
+      const buscaProx = proximo.substring(0, 40);
       const idxProx = texto.indexOf(buscaProx, inicioConteudo + 10);
       if (idxProx > inicioConteudo) fim = idxProx;
     }
 
     const conteudo = texto.substring(inicioConteudo, Math.min(fim, inicioConteudo + 12000)).trim();
-    console.log('[ETAPA3] Secao', i+1, '"' + titulo.substring(0,30) + '" -', conteudo.length, 'chars');
+    console.log('[3] Secao', i+1, '"' + titulo.substring(0,25) + '":', conteudo.length, 'chars');
 
     if (!conteudo || conteudo.length < 5) {
       capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: [] });
       continue;
     }
 
-    // Claude processa o conteúdo preservando tudo
     const prompt =
-      'Processe o texto abaixo e retorne APENAS JSON valido:\n' +
+      'Processe o texto abaixo e retorne APENAS JSON valido:\n\n' +
       '{"numero":"' + (i+1) + '","titulo":"' + titulo.replace(/"/g, '\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\n' +
-      'REGRAS CRITICAS - SIGA EXATAMENTE:\n' +
-      '1. NAO adicione nem remova NENHUMA palavra do texto original\n' +
-      '2. Preserve EXATAMENTE os negritos - marque com **texto** inline onde ha negrito no original\n' +
-      '3. Mantenha a numeracao de titulos e subtitulos exatamente como esta\n' +
-      '4. Corrija quebras de linha indevidas (una linhas que sao continuacao do mesmo paragrafo)\n' +
-      '5. tipo pode ser: "normal" para paragrafos ou "subtitulo" para subtitulos internos\n' +
-      '6. Inclua TODOS os paragrafos sem pular nenhum\n\n' +
-      'TEXTO DA SECAO:\n' + conteudo;
+      'REGRAS CRITICAS:\n' +
+      '1. NAO adicione nem remova NENHUMA palavra\n' +
+      '2. Preserve negritos marcando com **texto** inline\n' +
+      '3. Mantenha numeracao de titulos e subtitulos\n' +
+      '4. Corrija quebras de linha indevidas (una linhas que continuam o mesmo paragrafo)\n' +
+      '5. tipo: "normal" para paragrafos, "subtitulo" para subtitulos internos\n' +
+      '6. Inclua TODOS os paragrafos\n\n' +
+      'TEXTO:\n' + conteudo;
 
     try {
       const resposta = await chamarClaude(prompt, 8000);
-      const clean = resposta.replace(/```json|```/g, '').trim();
-      const cap = JSON.parse(clean);
-      const paragrafos = Array.isArray(cap.paragrafos) ? cap.paragrafos : [];
+      const cap = JSON.parse(resposta.replace(/```json|```/g, '').trim());
       capitulos.push({
         numero: String(i+1),
         titulo: String(cap.titulo || titulo),
-        paragrafos: paragrafos
+        paragrafos: Array.isArray(cap.paragrafos) ? cap.paragrafos : []
       });
-      console.log('[ETAPA3] Secao', i+1, 'OK -', paragrafos.length, 'paragrafos');
+      console.log('[3] Secao', i+1, 'OK -', cap.paragrafos ? cap.paragrafos.length : 0, 'paragrafos');
     } catch (e) {
-      console.error('[ETAPA3] Erro secao', i+1, ':', e.message);
+      console.error('[3] Erro secao', i+1, ':', e.message);
       // Fallback: dividir por linhas em branco
-      const paras = conteudo.split(/\n{2,}/).filter(p => p.trim().length > 0).map(p => ({
-        tipo: 'normal',
-        texto: p.trim().replace(/\n/g, ' '),
-        negrito: false
+      const paras = conteudo.split(/\n{2,}/).filter(p => p.trim()).map(p => ({
+        tipo: 'normal', texto: p.trim().replace(/\n/g, ' '), negrito: false
       }));
       capitulos.push({ numero: String(i+1), titulo: titulo, paragrafos: paras });
-      console.log('[ETAPA3] Fallback -', paras.length, 'paragrafos');
+      console.log('[3] Fallback -', paras.length, 'paragrafos');
     }
   }
 
   return capitulos;
 }
 
-// ══════════════════════════════════════════
-// ETAPA 4 — DIAGRAMAR
-// Gera o DOCX com todas as especificações
-// ══════════════════════════════════════════
-async function etapa4_diagramar(estrutura, pedido, outputPath) {
-  console.log('[ETAPA4] Gerando DOCX...');
-  const fmt    = getFmt(pedido.formato);
+// ══════════════════════════════════════
+// ETAPA 4 — REVISÃO ORTOGRÁFICA
+// Corrige ortografia, gramática,
+// pontuação, regência, crase
+// sem alterar o conteúdo
+// ══════════════════════════════════════
+async function etapa4_revisar(capitulos) {
+  console.log('[4] Revisando ortografia e gramatica...');
+  const revisados = [];
+
+  for (let i = 0; i < capitulos.length; i++) {
+    const cap = capitulos[i];
+    if (!cap.paragrafos || cap.paragrafos.length === 0) {
+      revisados.push(cap); continue;
+    }
+
+    const textoParas = cap.paragrafos.map(p => p.texto || '').join('\n\n');
+    const prompt =
+      'Revise o texto corrigindo APENAS erros de ortografia, concordancia, pontuacao, regencia e crase.\n' +
+      'NAO mude o estilo, conteudo, paragrafos nem negritos (**texto**).\n' +
+      'Retorne APENAS o texto corrigido, paragrafos separados por linha em branco:\n\n' +
+      textoParas;
+
+    try {
+      const resposta = await chamarClaude(prompt, 8000);
+      const parasRevisados = resposta.trim().split(/\n{2,}/).filter(p => p.trim());
+      const novosParagrafos = cap.paragrafos.map(function(p, idx) {
+        return { tipo: p.tipo, texto: parasRevisados[idx] ? parasRevisados[idx].trim() : p.texto, negrito: p.negrito };
+      });
+      revisados.push({ numero: cap.numero, titulo: cap.titulo, paragrafos: novosParagrafos });
+      console.log('[4] Secao', i+1, 'revisada');
+    } catch (e) {
+      console.error('[4] Erro revisao', i+1, ':', e.message);
+      revisados.push(cap);
+    }
+  }
+  return revisados;
+}
+
+// ══════════════════════════════════════
+// ETAPA 5 — DIAGRAMAR
+// Gera o DOCX com as especificações
+// exatas do livro de referência
+// ══════════════════════════════════════
+async function etapa5_diagramar(estrutura, pedido, outputPath) {
+  console.log('[5] Gerando DOCX...');
+  const fmt   = getFmt(pedido.formato);
   const titulo = String(estrutura.titulo || pedido.titulo || 'SEM TITULO');
+  const subtit = String(estrutura.subtitulo || '');
   const autor  = String(estrutura.autor || '');
   const cred   = String(estrutura.credencial || '');
   const caps   = estrutura.capitulos || [];
@@ -240,12 +313,11 @@ async function etapa4_diagramar(estrutura, pedido, outputPath) {
   function vazio() { return new Paragraph({ spacing:{before:0,after:0}, children:[new TextRun('')] }); }
 
   function makeRuns(texto, boldForcado) {
-    if (!texto) return [new TextRun({ text:'', font:FONTE, size:fmt.corpoSize, color:PRETO })];
-    // Processar marcação **negrito** inline
+    if (!texto) return [new TextRun({ text:'', font:FONTE, size:fmt.corpoSz, color:PRETO })];
     const parts = String(texto).split(/(\*\*[^*]+\*\*)/g);
     return parts.filter(Boolean).map(function(p) {
       const isBold = !!boldForcado || /^\*\*[^*]+\*\*$/.test(p);
-      return new TextRun({ text: p.replace(/\*\*/g, ''), font:FONTE, size:fmt.corpoSize, bold:isBold, color:PRETO });
+      return new TextRun({ text: p.replace(/\*\*/g, ''), font:FONTE, size:fmt.corpoSz, bold:isBold, color:PRETO });
     });
   }
 
@@ -261,68 +333,76 @@ async function etapa4_diagramar(estrutura, pedido, outputPath) {
     return new Paragraph({
       alignment: AlignmentType.LEFT,
       spacing:{ before:280, after:800 },
-      children:[new TextRun({ text:String(texto).toUpperCase(), font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })]
+      children:[new TextRun({ text:String(texto).toUpperCase(), font:FONTE, size:fmt.tituloCapSz, bold:true, color:PRETO })]
     });
   }
   function pSubtitulo(texto) {
     return new Paragraph({
       alignment: AlignmentType.LEFT,
       spacing:{ before:200, after:400 },
-      children:[new TextRun({ text:String(texto), font:FONTE, size:fmt.tituloSize-4, bold:true, color:PRETO })]
+      children:[new TextRun({ text:String(texto), font:FONTE, size:fmt.tituloCapSz-4, bold:true, color:PRETO })]
     });
   }
 
-  // Cabeçalho
+  // CABEÇALHO: título esquerda | autor direita
   const cabecalho = new Header({ children:[new Paragraph({
     spacing:{before:0,after:0},
     tabStops:[{type:TabStopType.RIGHT, position:fmt.pageW-fmt.mEsq-fmt.mDir}],
     border:{bottom:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
     children:[
-      new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:fmt.cabSize, allCaps:true, color:PRETO }),
+      new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:fmt.cabSz, allCaps:true, color:PRETO }),
       new TextRun({ text:'\t' }),
-      new TextRun({ text:autor, font:FONTE, size:fmt.cabSize, italics:true, color:PRETO })
+      new TextRun({ text:autor, font:FONTE, size:fmt.cabSz, italics:true, color:PRETO })
     ]
   })]});
 
-  // Rodapé
+  // RODAPÉ: número de página centralizado
   const rodape = new Footer({ children:[new Paragraph({
     alignment:AlignmentType.CENTER,
     spacing:{before:0,after:0},
     border:{top:{style:BorderStyle.SINGLE,size:2,color:PRETO,space:1}},
-    children:[new TextRun({ children:[PageNumber.CURRENT], font:FONTE, size:fmt.rodSize, color:PRETO })]
+    children:[new TextRun({ children:[PageNumber.CURRENT], font:FONTE, size:fmt.rodSz, color:PRETO })]
   })]});
 
-  // Página de rosto
+  // PÁGINA DE ROSTO
   const rosto = [
     vazio(), vazio(), vazio(), vazio(),
-    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:280}, children:[new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:56, bold:true, color:PRETO })] }),
-    linhaEspessa(0,280),
-    linhaTenue(0,160),
-    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160}, children:[new TextRun({ text:'\u2014 \u2014', font:FONTE, size:28, color:PRETO })] }),
-    linhaTenue(0,480),
-    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:120}, children:[new TextRun({ text:autor.toUpperCase(), font:FONTE, size:44, bold:true, color:PRETO })] }),
-    cred ? new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:0}, children:[new TextRun({ text:cred, font:FONTE, size:20, italics:true, color:PRETO })] }) : vazio(),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:280},
+      children:[new TextRun({ text:titulo.toUpperCase(), font:FONTE, size:fmt.capaMainSz, bold:true, color:PRETO })] }),
+    linhaEspessa(0, 280),
+    subtit
+      ? new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160},
+          children:[new TextRun({ text:subtit, font:FONTE, size:fmt.capaSubSz, italics:true, color:PRETO })] })
+      : vazio(),
+    linhaTenue(0, 160),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:160},
+      children:[new TextRun({ text:'\u2014 \u2014', font:FONTE, size:24, color:PRETO })] }),
+    linhaTenue(0, 480),
+    new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:120},
+      children:[new TextRun({ text:autor.toUpperCase(), font:FONTE, size:fmt.capaAutorSz, bold:true, color:PRETO })] }),
+    cred
+      ? new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:0},
+          children:[new TextRun({ text:cred, font:FONTE, size:fmt.capaCredSz, italics:true, color:PRETO })] })
+      : vazio(),
     br()
   ];
 
-  // Sumário
+  // SUMÁRIO
   const sumario = [
-    linhaTenue(0,200),
-    new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:400}, children:[new TextRun({ text:'SUM\u00c1RIO', font:FONTE, size:fmt.tituloSize, bold:true, color:PRETO })] }),
+    linhaTenue(0, 200),
+    new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:400},
+      children:[new TextRun({ text:'SUM\u00c1RIO', font:FONTE, size:fmt.sumarioTitSz, bold:true, color:PRETO })] }),
     ...caps.map(function(cap) {
-      return new Paragraph({
-        alignment:AlignmentType.LEFT,
-        spacing:{before:120,after:60},
-        children:[new TextRun({ text:String(cap.numero) + '. ' + String(cap.titulo || ''), font:FONTE, size:24, color:PRETO })]
-      });
+      return new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:120,after:60},
+        children:[new TextRun({ text:String(cap.numero) + '. ' + String(cap.titulo || ''), font:FONTE, size:fmt.sumarioItemSz, color:PRETO })] });
     }),
     br()
   ];
 
-  // Conteúdo
+  // CONTEÚDO DOS CAPÍTULOS
   const conteudo = [];
   caps.forEach(function(cap, i) {
-    conteudo.push(linhaTenue(0,200));
+    conteudo.push(linhaTenue(0, 200));
     conteudo.push(pTituloSecao(String(cap.numero) + '. ' + String(cap.titulo || '')));
     var paras = Array.isArray(cap.paragrafos) ? cap.paragrafos : [];
     paras.forEach(function(p) {
@@ -334,9 +414,12 @@ async function etapa4_diagramar(estrutura, pedido, outputPath) {
   });
 
   const doc = new Document({
-    styles:{ default:{ document:{ run:{ font:FONTE, size:24, color:PRETO } } } },
+    styles:{ default:{ document:{ run:{ font:FONTE, size:fmt.corpoSz, color:PRETO } } } },
     sections:[{
-      properties:{ page:{ size:{ width:fmt.pageW, height:fmt.pageH }, margin:{ top:fmt.mTop, bottom:fmt.mBot, left:fmt.mEsq, right:fmt.mDir, header:fmt.mCab, footer:fmt.mRod } } },
+      properties:{ page:{
+        size:{ width:fmt.pageW, height:fmt.pageH },
+        margin:{ top:fmt.mTop, bottom:fmt.mBot, left:fmt.mEsq, right:fmt.mDir, header:fmt.mCab, footer:fmt.mRod }
+      }},
       headers:{ default:cabecalho },
       footers:{ default:rodape },
       children:[...rosto, ...sumario, ...conteudo]
@@ -345,123 +428,80 @@ async function etapa4_diagramar(estrutura, pedido, outputPath) {
 
   const buf = await Packer.toBuffer(doc);
   fs.writeFileSync(outputPath, buf);
-  console.log('[ETAPA4] DOCX gerado com', caps.length, 'capitulos');
+  console.log('[5] DOCX gerado:', caps.length, 'capitulos');
 }
 
-// ══════════════════════════════════════════
-// ETAPA 5 — CONFERIR E REVISAR (pacote completo)
-// Claude revisa ortografia e gramática
-// ══════════════════════════════════════════
-async function etapa5_revisar(capitulos) {
-  console.log('[ETAPA5] Revisando ortografia e gramatica...');
-  const capitulosRevisados = [];
+// ══════════════════════════════════════
+// ETAPA 6 — ENTREGAR AO CLIENTE
+// Salva, gera link e notifica por
+// email e WhatsApp
+// ══════════════════════════════════════
+async function etapa6_entregar(pedido, docxPath, pedidos, idx) {
+  console.log('[6] Entregando ao cliente...');
+  const token = crypto.randomBytes(16).toString('hex');
+  pedidos[idx].status        = 'pronto';
+  pedidos[idx].arquivoDocx   = path.basename(docxPath);
+  pedidos[idx].downloadToken = token;
+  pedidos[idx].linkDownload  = BASE_URL + '/download/' + pedido.id + '/' + token;
+  pedidos[idx].entreguEm     = new Date().toISOString();
+  salvarPedidos(pedidos);
 
-  for (let i = 0; i < capitulos.length; i++) {
-    const cap = capitulos[i];
-    if (!cap.paragrafos || cap.paragrafos.length === 0) {
-      capitulosRevisados.push(cap);
-      continue;
-    }
-
-    // Juntar parágrafos para revisão
-    const textoParaRevisar = cap.paragrafos.map(p => p.texto).join('\n\n');
-
-    const prompt =
-      'Revise o texto abaixo corrigindo APENAS erros de:\n' +
-      '- Ortografia\n' +
-      '- Concordancia verbal e nominal\n' +
-      '- Pontuacao\n' +
-      '- Regencia\n' +
-      '- Uso correto de crase\n\n' +
-      'REGRAS CRITICAS:\n' +
-      '1. NAO mude o estilo nem o conteudo\n' +
-      '2. NAO adicione nem remova paragrafos\n' +
-      '3. Mantenha os negritos marcados com **texto**\n' +
-      '4. Retorne APENAS o texto corrigido, paragrafo por paragrafo separados por linha em branco\n\n' +
-      'TEXTO:\n' + textoParaRevisar;
-
-    try {
-      const resposta = await chamarClaude(prompt, 8000);
-      const paragrafosRevisados = resposta.trim().split(/\n{2,}/).filter(p => p.trim().length > 0);
-
-      const novosParas = cap.paragrafos.map(function(p, idx) {
-        return {
-          tipo: p.tipo,
-          texto: paragrafosRevisados[idx] ? paragrafosRevisados[idx].trim() : p.texto,
-          negrito: p.negrito
-        };
-      });
-
-      capitulosRevisados.push({ numero: cap.numero, titulo: cap.titulo, paragrafos: novosParas });
-      console.log('[ETAPA5] Secao', i+1, 'revisada');
-    } catch (e) {
-      console.error('[ETAPA5] Erro revisao secao', i+1, ':', e.message);
-      capitulosRevisados.push(cap);
-    }
-  }
-
-  return capitulosRevisados;
+  const link = pedidos[idx].linkDownload;
+  await enviarEmail(pedido.email, 'Seu livro diagramado esta pronto! — Lucel Digital',
+    '<p>Ola, <strong>' + pedido.nome + '</strong>!</p>' +
+    '<p>Seu livro <em>' + pedido.titulo + '</em> esta pronto!</p>' +
+    '<p><a href="' + link + '" style="background:#c9a96e;color:#000;padding:12px 24px;text-decoration:none;font-weight:bold;display:inline-block">BAIXAR MEU LIVRO</a></p>' +
+    '<p style="color:#666;font-size:13px">Link: ' + link + '</p>');
+  await enviarWhatsApp(pedido.whats,
+    pedido.nome + ', seu livro "' + pedido.titulo + '" esta pronto! Baixe aqui: ' + link + ' — Lucel Digital');
+  console.log('[6] Cliente notificado:', pedido.email);
 }
 
-// ══════════════════════════════════════════
+// ══════════════════════════════════════
 // FLUXO PRINCIPAL
-// ══════════════════════════════════════════
+// ══════════════════════════════════════
 async function executarDiagramacao(pedido) {
-  console.log('=== INICIANDO:', pedido.id, '===');
+  console.log('=== INICIO:', pedido.id, pedido.titulo, '===');
   const pedidos = lerPedidos();
   const idx = pedidos.findIndex(function(p) { return p.id === pedido.id; });
 
   try {
     const arquivoPath = path.join(UPLOAD_DIR, pedido.arquivoOriginal);
-    if (!fs.existsSync(arquivoPath)) throw new Error('Arquivo nao encontrado');
+    if (!fs.existsSync(arquivoPath)) throw new Error('Arquivo nao encontrado: ' + arquivoPath);
 
-    // ETAPA 1: Ler o livro
-    const { texto, html } = await etapa1_lerLivro(arquivoPath);
-    if (!texto || texto.length < 50) throw new Error('Arquivo sem conteudo');
+    // ETAPA 1: Ler o livro completo
+    const texto = await etapa1_lerLivro(arquivoPath);
+    if (!texto || texto.length < 50) throw new Error('Arquivo sem conteudo de texto');
 
-    // ETAPA 2: Identificar estrutura
+    // ETAPA 2: Identificar estrutura (título, autor, seções)
     const estruturaBase = await etapa2_identificarEstrutura(texto);
-    if (!estruturaBase.secoes || estruturaBase.secoes.length === 0) throw new Error('Nenhuma secao identificada');
+    if (!estruturaBase.secoes || estruturaBase.secoes.length === 0) {
+      throw new Error('Nenhuma secao identificada no livro');
+    }
 
-    // ETAPA 3: Extrair conteúdo de cada seção
-    const capitulos = await etapa3_extrairConteudo(texto, html, estruturaBase.secoes);
+    // ETAPA 3: Extrair conteúdo preservando original, negritos e numeração
+    const capitulos = await etapa3_extrairConteudo(texto, estruturaBase.secoes);
 
-    // ETAPA 4 (opcional): Revisão ortográfica/gramatical
-    let capitulosFinais = capitulos;
-    console.log('[FLUXO] Executando revisao ortografica e gramatical...');
-    capitulosFinais = await etapa5_revisar(capitulos);
+    // ETAPA 4: Revisão ortográfica e gramatical
+    const capitulosRevisados = await etapa4_revisar(capitulos);
 
-    // ETAPA 5: Diagramar
+    // ETAPA 5: Diagramar o DOCX
     const estrutura = {
-      titulo: estruturaBase.titulo || pedido.titulo,
-      autor: estruturaBase.autor || '',
+      titulo:     estruturaBase.titulo     || pedido.titulo,
+      subtitulo:  estruturaBase.subtitulo  || '',
+      autor:      estruturaBase.autor      || '',
       credencial: estruturaBase.credencial || '',
-      capitulos: capitulosFinais
+      capitulos:  capitulosRevisados
     };
-
     const docxPath = path.join(ENTREGA_DIR, pedido.id + '_diagramado.docx');
-    await etapa4_diagramar(estrutura, pedido, docxPath);
+    await etapa5_diagramar(estrutura, pedido, docxPath);
 
     // ETAPA 6: Entregar ao cliente
-    const token = crypto.randomBytes(16).toString('hex');
-    pedidos[idx].status        = 'pronto';
-    pedidos[idx].arquivoDocx   = path.basename(docxPath);
-    pedidos[idx].downloadToken = token;
-    pedidos[idx].linkDownload  = BASE_URL + '/download/' + pedido.id + '/' + token;
-    pedidos[idx].entreguEm     = new Date().toISOString();
-    salvarPedidos(pedidos);
-
-    const link = pedidos[idx].linkDownload;
-    await enviarEmail(pedido.email, 'Seu livro diagramado esta pronto! — Lucel Digital',
-      '<p>Ola, <strong>' + pedido.nome + '</strong>!</p>' +
-      '<p>Seu livro <em>' + pedido.titulo + '</em> esta pronto!</p>' +
-      '<p><a href="' + link + '" style="background:#c9a96e;color:#000;padding:12px 24px;text-decoration:none;font-weight:bold;display:inline-block">BAIXAR MEU LIVRO</a></p>' +
-      '<p style="color:#666;font-size:13px">Link: ' + link + '</p>');
-    await enviarWhatsApp(pedido.whats, pedido.nome + ', seu livro "' + pedido.titulo + '" esta pronto! Baixe aqui: ' + link + ' — Lucel Digital');
+    await etapa6_entregar(pedido, docxPath, pedidos, idx);
     console.log('=== CONCLUIDO:', pedido.id, '===');
 
   } catch (e) {
-    console.error('=== ERRO:', e.message, '===');
+    console.error('=== ERRO:', e.message);
     console.error(e.stack);
     if (idx !== -1) {
       pedidos[idx].status = 'erro';
@@ -539,9 +579,12 @@ app.post('/api/pedido/:id/liberar', adminAuth, async function(req, res) {
   const p = pedidos[idx];
   res.json({ ok: true });
   await enviarEmail(p.email, 'Seu servico foi iniciado — Lucel Digital',
-    '<p>Ola, <strong>' + p.nome + '</strong>!</p><p>Seu pedido <strong>#' + p.id + '</strong> foi confirmado e a diagramacao do livro <em>' + p.titulo + '</em> foi iniciada.</p><p>Voce recebera os arquivos em ate 2 horas por e-mail e WhatsApp.</p>');
-  await enviarWhatsApp(p.whats, 'Ola ' + p.nome + '! Pedido #' + p.id + ' confirmado. Diagramacao de "' + p.titulo + '" iniciada. Voce recebera em ate 2h. — Lucel Digital');
-  executarDiagramacao(p).catch(function(e) { console.error('[BG ERRO]', e.message); });
+    '<p>Ola, <strong>' + p.nome + '</strong>!</p>' +
+    '<p>Seu pedido <strong>#' + p.id + '</strong> foi confirmado. A diagramacao do livro <em>' + p.titulo + '</em> foi iniciada.</p>' +
+    '<p>Voce recebera os arquivos em ate 2 horas por e-mail e WhatsApp.</p>');
+  await enviarWhatsApp(p.whats,
+    'Ola ' + p.nome + '! Pedido #' + p.id + ' confirmado. Diagramacao de "' + p.titulo + '" iniciada. Voce recebera em ate 2h. — Lucel Digital');
+  executarDiagramacao(p).catch(function(e) { console.error('[BG]', e.message); });
 });
 
 app.post('/api/pedido/:id/cancelar', adminAuth, function(req, res) {
