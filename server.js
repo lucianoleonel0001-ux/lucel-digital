@@ -94,58 +94,68 @@ async function extrairTexto(filePath) {
 
 // ── ANALISAR ESTRUTURA COM CLAUDE ──
 async function analisarEstrutura(texto, pedido) {
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+
+  // ETAPA 1: Ler o livro todo e identificar estrutura
+  const resp1 = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01'
-    },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: `Você é um sistema de diagramação editorial brasileiro. Analise o texto abaixo e retorne APENAS um JSON válido (sem markdown, sem explicações) com esta estrutura:
-
-{
-  "titulo": "título principal do livro",
-  "subtitulo": "subtítulo se houver, senão string vazia",
-  "autor": "nome do autor se encontrado, senão string vazia",
-  "credencial": "credencial do autor se houver, senão string vazia",
-  "capitulos": [
-    {
-      "numero": "1",
-      "titulo": "TÍTULO DO CAPÍTULO",
-      "paragrafos": [
-        { "tipo": "normal", "texto": "texto exato do parágrafo", "negrito": false }
-      ]
-    }
-  ]
-}
-
-REGRAS CRÍTICAS:
-1. NÃO acrescente nem remova NENHUMA palavra do texto original
-2. Preserve EXATAMENTE onde há negrito — marque com **texto** inline
-3. Preserve numeração de títulos/subtítulos exatamente como estão
-4. Corrija quebras de linha indevidas (una frases que continuam na próxima linha)
-5. tipo pode ser: "normal", "subtitulo", "lista"
-6. Inclua TODOS os parágrafos do texto, não pule nenhum
-7. Se o texto tiver prefácio, introdução, etc, inclua como capítulos
-
-TEXTO DO LIVRO:
-${texto.substring(0, 25000)}`
-      }]
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: 'Leia este livro e retorne APENAS JSON (sem markdown):\n{"titulo":"...","subtitulo":"...","autor":"...","credencial":"...","secoes":["TITULO EXATO DA SEÇÃO 1","TITULO EXATO DA SEÇÃO 2"]}\n\nIdentifique TODAS as seções: prefácio, capítulos, conclusão, etc. Use o título EXATO como aparece no texto.\n\nTEXTO:\n' + texto.substring(0, 50000) }]
     })
   });
-  const data = await resp.json();
-  const raw = data.content?.[0]?.text || '{}';
-  const clean = raw.replace(/```json|```/g, '').trim();
-  try { return JSON.parse(clean); }
-  catch {
-    console.error('[ESTRUTURA] parse error, raw:', raw.substring(0, 200));
-    return { titulo: pedido.titulo, subtitulo:'', autor:'', credencial:'', capitulos:[] };
+  const d1 = await resp1.json();
+  const raw1 = (d1.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim();
+  let base;
+  try { base = JSON.parse(raw1); } catch { base = { titulo: pedido.titulo, subtitulo: '', autor: '', credencial: '', secoes: [] }; }
+  console.log('[DIAG] Etapa1 - Secoes:', base.secoes?.length || 0);
+
+  // ETAPA 2: Processar cada seção com seu conteúdo
+  const capitulos = [];
+  const secoes = base.secoes || [];
+
+  for (let i = 0; i < secoes.length; i++) {
+    const tituloSec = secoes[i];
+    const proximaSec = secoes[i + 1];
+
+    const busca = tituloSec.substring(0, 40);
+    let idxInicio = texto.indexOf(busca);
+    if (idxInicio < 0) idxInicio = 0;
+
+    let idxFim = texto.length;
+    if (proximaSec) {
+      const buscaProx = proximaSec.substring(0, 40);
+      const idx = texto.indexOf(buscaProx, idxInicio + busca.length);
+      if (idx > idxInicio) idxFim = idx;
+    }
+
+    const textoSec = texto.substring(idxInicio, Math.min(idxFim, idxInicio + 12000));
+
+    const resp2 = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        messages: [{ role: 'user', content: 'Retorne APENAS JSON (sem markdown):\n{"numero":"' + (i + 1) + '","titulo":"' + tituloSec.replace(/"/g, '\\"') + '","paragrafos":[{"tipo":"normal","texto":"texto exato","negrito":false}]}\n\nREGRAS:\n1. NAO adicione nem remova palavras\n2. Una linhas que sao continuacao do mesmo paragrafo\n3. tipo: normal ou subtitulo\n4. Inclua TODOS os paragrafos\n\nTEXTO DA SECAO:\n' + textoSec }]
+      })
+    });
+
+    const d2 = await resp2.json();
+    const raw2 = (d2.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim();
+    try { capitulos.push(JSON.parse(raw2)); }
+    catch { capitulos.push({ numero: String(i + 1), titulo: tituloSec, paragrafos: [] }); }
+    console.log('[DIAG] Secao', i + 1, '/', secoes.length, 'processada');
   }
+
+  return {
+    titulo: base.titulo || pedido.titulo,
+    subtitulo: base.subtitulo || '',
+    autor: base.autor || '',
+    credencial: base.credencial || '',
+    capitulos
+  };
 }
 
 // ── GERAR DOCX ──
