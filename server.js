@@ -130,23 +130,55 @@ async function chamarClaude(prompt, maxTokens) {
 async function etapa1_lerLivro(filePath) {
   console.log('[1] Lendo:', path.basename(filePath));
   const ext = path.extname(filePath).toLowerCase();
+
   if (ext === '.pdf') {
     const buf = fs.readFileSync(filePath);
     const data = await pdfParse(buf);
     console.log('[1] PDF chars:', data.text.length);
-    return data.text || '';
+    return { texto: data.text || '', imagens: [], tabelas: [] };
   }
-  // Usar extractRawText para busca de secoes, mas preservar info de negrito via HTML
-  const resultTexto = await mammoth.extractRawText({ path: filePath });
-  const resultHtml  = await mammoth.convertToHtml({ path: filePath });
-  // Marcar negritos no texto plano baseado no HTML
-  const htmlComNegrito = resultHtml.value
-    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
-    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+
+  // DOCX: extrair HTML preservando tabelas, negritos e imagens
+  const resultHtml = await mammoth.convertToHtml({
+    path: filePath,
+    options: {
+      includeDefaultStyleMap: true
+    }
+  });
+
+  const html = resultHtml.value;
+
+  // Extrair tabelas do HTML e converter para texto estruturado
+  const tabelas = [];
+  const htmlSemTabelas = html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, function(match, conteudoTabela) {
+    // Converter tabela HTML em texto formatado com |
+    const linhas = [];
+    const rows = conteudoTabela.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+    rows.forEach(function(row) {
+      const cells = row.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || [];
+      const celulas = cells.map(function(cell) {
+        return cell.replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').trim();
+      });
+      if (celulas.length > 0) linhas.push(celulas.join(' | '));
+    });
+    const tabelaTexto = '[TABELA]\n' + linhas.join('\n') + '\n[/TABELA]';
+    tabelas.push(tabelaTexto);
+    return tabelaTexto;
+  });
+
+  // Converter HTML para texto preservando negritos e estrutura
+  const texto = htmlSemTabelas
+    .replace(/<strong>([\s\S]*?)<\/strong>/gi, '**$1**')
+    .replace(/<b>([\s\S]*?)<\/b>/gi, '**$1**')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<br[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
-  console.log('[1] DOCX chars:', htmlComNegrito.length);
-  return htmlComNegrito || resultTexto.value || '';
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  console.log('[1] DOCX chars:', texto.length, '| Tabelas:', tabelas.length);
+  return { texto, imagens: [], tabelas };
 }
 
 // ══════════════════════════════════════
@@ -284,6 +316,17 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
   }
 
   function pCorpo(texto, negrito) {
+    // Verificar se é uma tabela
+    if (String(texto).startsWith('[TABELA]')) {
+      const linhas = String(texto).replace('[TABELA]','').replace('[/TABELA]','').trim().split('\n');
+      return linhas.map(function(linha) {
+        return new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing:{ before:0, after:60 },
+          children:[new TextRun({ text: linha, font:FONTE, size:fmt.corpoSz, color:PRETO })]
+        });
+      });
+    }
     return new Paragraph({
       alignment: AlignmentType.JUSTIFIED,
       spacing:{ before:0, after:0, line:276, lineRule:'auto' },
@@ -369,8 +412,16 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     var paras = Array.isArray(cap.paragrafos) ? cap.paragrafos : [];
     paras.forEach(function(p) {
       if (!p || !p.texto) return;
-      if (p.tipo === 'subtitulo') conteudo.push(pSubtitulo(p.texto));
-      else conteudo.push(pCorpo(p.texto, p.negrito));
+      if (p.tipo === 'subtitulo') {
+        conteudo.push(pSubtitulo(p.texto));
+      } else {
+        var result = pCorpo(p.texto, p.negrito);
+        if (Array.isArray(result)) {
+          result.forEach(function(r) { conteudo.push(r); });
+        } else {
+          conteudo.push(result);
+        }
+      }
     });
     if (i < caps.length - 1) conteudo.push(br());
   });
@@ -432,7 +483,8 @@ async function executarDiagramacao(pedido) {
     if (!fs.existsSync(arquivoPath)) throw new Error('Arquivo nao encontrado: ' + arquivoPath);
 
     // ETAPA 1: Ler o livro completo
-    const texto = await etapa1_lerLivro(arquivoPath);
+    const livro = await etapa1_lerLivro(arquivoPath);
+    const texto = livro.texto || livro;
     if (!texto || texto.length < 50) throw new Error('Arquivo sem conteudo de texto');
 
     // ETAPAS 2+3: Estruturar livro completo em uma chamada
