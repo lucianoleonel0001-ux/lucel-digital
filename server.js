@@ -157,11 +157,16 @@ async function analisarEstrutura(texto, pedido) {
     let idxFim = texto.length;
     if (secoes[i+1]) {
       const buscaProx = secoes[i+1].substring(0, 40);
-      const idx = texto.indexOf(buscaProx, idxInicio + busca.length);
+      // Buscar a próxima seção a partir do fim do título atual
+      const idx = texto.indexOf(buscaProx, idxInicio + busca.length + 1);
       if (idx > idxInicio) idxFim = idx;
     }
 
-    const textoSec = texto.substring(idxInicio, Math.min(idxFim, idxInicio + 12000));
+    // Pegar o texto da seção (sem o título)
+    const fimTitulo = texto.indexOf(String.fromCharCode(10), idxInicio);
+    const inicioConteudo = fimTitulo > idxInicio ? fimTitulo + 1 : idxInicio;
+    const textoSec = texto.substring(inicioConteudo, Math.min(idxFim, inicioConteudo + 15000));
+    console.log('[DIAG] Secao', i+1, '- chars:', textoSec.length, '- titulo:', tituloSec.substring(0,30));
 
     try {
       const resp2 = await fetch('https://api.anthropic.com/v1/messages', {
