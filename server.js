@@ -53,27 +53,14 @@ async function enviarWhatsApp(numero, msg) {
   catch (e) { console.error('[WHATS]', e.message); }
 }
 
-// ══════════════════════════════════════
-// ESPECIFICAÇÕES DE FORMATO
-// Baseado no livro de referência 14x21
-// ══════════════════════════════════════
 const FORMATOS = {
   '14x21': {
     pageW: 7937, pageH: 11905,
     mTop: 992, mBot: 992, mEsq: 1134, mDir: 1134,
     mCab: 482, mRod: 482,
-    // Tamanhos em half-points (1pt = 2 half-pts)
-    corpoSz: 24,      // 12pt
-    tituloCapSz: 32,  // 16pt
-    sumarioTitSz: 32, // 16pt
-    sumarioItemSz: 24,// 12pt
-    capaMainSz: 90,   // 45pt
-    capaSubSz: 36,    // 18pt
-    capaAutorSz: 44,  // 22pt
-    capaCredSz: 20,   // 10pt
-    cabSz: 14,        // 7pt
-    rodSz: 20,        // 10pt
-    recuo: 482        // 0.85cm
+    corpoSz: 24, tituloCapSz: 32, sumarioTitSz: 32, sumarioItemSz: 24,
+    capaMainSz: 90, capaSubSz: 36, capaAutorSz: 44, capaCredSz: 20,
+    cabSz: 14, rodSz: 20, recuo: 482
   },
   '16x23': {
     pageW: 9072, pageH: 13032,
@@ -100,9 +87,6 @@ function getFmt(formato) {
   return FORMATOS['14x21'];
 }
 
-// ══════════════════════════════════════
-// CHAMAR CLAUDE
-// ══════════════════════════════════════
 async function chamarClaude(prompt, maxTokens) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -124,8 +108,24 @@ async function chamarClaude(prompt, maxTokens) {
 }
 
 // ══════════════════════════════════════
-// ETAPA 1 — LER O LIVRO COMPLETO
-// Extrai texto e HTML (para negritos)
+// BUSCA FUZZY — tolera espaços extras do PDF
+// Ex: "Capítulo  4" encontrado com "Capítulo 4"
+// ══════════════════════════════════════
+function buscarNaTexto(texto, busca) {
+  // Tentativa direta
+  let pos = texto.indexOf(busca);
+  if (pos >= 0) return pos;
+  // Fuzzy: substituir sequências de whitespace por \s+
+  const escaped = busca.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  try {
+    const m = new RegExp(escaped).exec(texto);
+    if (m) return m.index;
+  } catch(e) {}
+  return -1;
+}
+
+// ══════════════════════════════════════
+// ETAPA 1 — LER O LIVRO
 // ══════════════════════════════════════
 async function etapa1_lerLivro(filePath) {
   console.log('[1] Lendo:', path.basename(filePath));
@@ -134,24 +134,25 @@ async function etapa1_lerLivro(filePath) {
   if (ext === '.pdf') {
     const buf = fs.readFileSync(filePath);
     const data = await pdfParse(buf);
-    console.log('[1] PDF chars:', data.text.length);
-    return { texto: data.text || '', imagens: [], tabelas: [] };
+    const textoRaw = data.text || '';
+    // CORREÇÃO 1: normalizar espaços múltiplos gerados pelo PDF
+    // (ex: "Capítulo  4" → "Capítulo 4")
+    const texto = textoRaw
+      .replace(/[ \t]+/g, ' ')        // múltiplos espaços/tabs → 1 espaço
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/ \n/g, '\n')          // espaço antes de quebra de linha
+      .replace(/\n /g, '\n');         // espaço depois de quebra de linha
+    console.log('[1] PDF chars:', texto.length);
+    return { texto, imagens: [], tabelas: [] };
   }
 
-  // DOCX: extrair HTML preservando tabelas, negritos e imagens
-  const resultHtml = await mammoth.convertToHtml({
-    path: filePath,
-    options: {
-      includeDefaultStyleMap: true
-    }
-  });
-
+  // DOCX
+  const resultHtml = await mammoth.convertToHtml({ path: filePath, options: { includeDefaultStyleMap: true } });
   const html = resultHtml.value;
 
-  // Extrair tabelas do HTML e converter para texto estruturado
   const tabelas = [];
   const htmlSemTabelas = html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, function(match, conteudoTabela) {
-    // Converter tabela HTML em texto formatado com |
     const linhas = [];
     const rows = conteudoTabela.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
     rows.forEach(function(row) {
@@ -166,7 +167,6 @@ async function etapa1_lerLivro(filePath) {
     return tabelaTexto;
   });
 
-  // Converter HTML para texto preservando negritos e estrutura
   const texto = htmlSemTabelas
     .replace(/<strong>([\s\S]*?)<\/strong>/gi, '**$1**')
     .replace(/<b>([\s\S]*?)<\/b>/gi, '**$1**')
@@ -174,6 +174,7 @@ async function etapa1_lerLivro(filePath) {
     .replace(/<br[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
@@ -182,12 +183,11 @@ async function etapa1_lerLivro(filePath) {
 }
 
 // ══════════════════════════════════════
-// ETAPA 2 — IDENTIFICAR ESTRUTURA
+// ETAPA 2+3 — IDENTIFICAR E ESTRUTURAR
 // ══════════════════════════════════════
 async function etapa2e3_estruturarLivro(texto) {
   console.log('[2] Identificando estrutura...');
 
-  // PASSO A: Identificar titulo, autor e secoes
   const promptA =
     'Leia este livro e retorne APENAS JSON valido:\n' +
     '{"titulo":"...","subtitulo":"...","autor":"...","credencial":"...","secoes":["titulo exato 1","titulo exato 2"]}\n\n' +
@@ -196,30 +196,54 @@ async function etapa2e3_estruturarLivro(texto) {
 
   const respostaA = await chamarClaude(promptA, 3000);
   const base = JSON.parse(respostaA.replace(/```json|```/g, '').trim());
-  console.log('[2] Titulo:', base.titulo, '| Secoes:', base.secoes ? base.secoes.length : 0);
+  console.log('[2] Titulo:', base.titulo, '| Secoes brutas:', base.secoes ? base.secoes.length : 0);
 
-  // PASSO B: Processar cada secao separadamente
+  // CORREÇÃO 2+3: mapear posição real de cada seção e ordenar pelo texto
+  const secoesRaw = base.secoes || [];
+  const secoesComPos = secoesRaw.map(function(titulo) {
+    const pos = buscarNaTexto(texto, titulo.substring(0, 35));
+    return { titulo, pos };
+  });
+  // Ordenar por posição no texto (seções não encontradas vão ao final)
+  secoesComPos.sort(function(a, b) {
+    if (a.pos < 0 && b.pos < 0) return 0;
+    if (a.pos < 0) return 1;
+    if (b.pos < 0) return -1;
+    return a.pos - b.pos;
+  });
+  const secoes = secoesComPos.map(function(s) { return s.titulo; });
+  console.log('[2] Secoes ordenadas:', JSON.stringify(secoes));
+
   const capitulos = [];
-  const secoes = base.secoes || [];
 
   for (let i = 0; i < secoes.length; i++) {
     const titulo = secoes[i];
     const proximo = secoes[i+1] || null;
 
     const busca = titulo.substring(0, 35);
-    let inicio = texto.indexOf(busca);
-    if (inicio < 0) { capitulos.push({ numero: String(i+1), titulo, paragrafos: [] }); continue; }
+    // CORREÇÃO 2: usar busca fuzzy
+    let inicio = buscarNaTexto(texto, busca);
+
+    if (inicio < 0) {
+      console.log('[2] Secao', i+1, 'nao encontrada:', titulo);
+      capitulos.push({ numero: String(i+1), titulo, paragrafos: [] });
+      continue;
+    }
 
     const fimTitulo = texto.indexOf('\n', inicio);
     const inicioConteudo = fimTitulo > 0 ? fimTitulo + 1 : inicio;
     let fim = texto.length;
     if (proximo) {
-      const idx = texto.indexOf(proximo.substring(0, 35), inicioConteudo + 10);
-      if (idx > inicioConteudo) fim = idx;
+      const idxProx = buscarNaTexto(texto, proximo.substring(0, 35));
+      if (idxProx > inicioConteudo) fim = idxProx;
     }
 
     const conteudo = texto.substring(inicioConteudo, Math.min(fim, inicioConteudo + 8000)).trim();
-    if (!conteudo || conteudo.length < 5) { capitulos.push({ numero: String(i+1), titulo, paragrafos: [] }); continue; }
+    if (!conteudo || conteudo.length < 5) {
+      console.log('[2] Secao', i+1, 'sem conteudo:', titulo);
+      capitulos.push({ numero: String(i+1), titulo, paragrafos: [] });
+      continue;
+    }
 
     const promptB =
       'Retorne APENAS JSON valido com os paragrafos desta secao:\n' +
@@ -230,23 +254,31 @@ async function etapa2e3_estruturarLivro(texto) {
     try {
       const respostaB = await chamarClaude(promptB, 4000);
       const cap = JSON.parse(respostaB.replace(/```json|```/g, '').trim());
-      capitulos.push({ numero: String(i+1), titulo: cap.titulo || titulo, paragrafos: cap.paragrafos || [] });
-      console.log('[2] Secao', i+1, 'OK -', cap.paragrafos ? cap.paragrafos.length : 0, 'paragrafos');
+      // Sanitizar resultado
+      const paragrafos = Array.isArray(cap.paragrafos) ? cap.paragrafos.filter(function(p) {
+        return p && typeof p === 'object' && p.texto && String(p.texto).trim().length > 0;
+      }) : [];
+      capitulos.push({ numero: String(i+1), titulo: String(cap.titulo || titulo), paragrafos });
+      console.log('[2] Secao', i+1, 'OK -', paragrafos.length, 'paragrafos:', titulo);
     } catch(e) {
-      console.error('[2] Erro secao', i+1, e.message);
-      const paras = conteudo.split(/\n{2,}/).filter(p=>p.trim()).map(p=>({tipo:'normal',texto:p.trim().replace(/\n/g,' '),negrito:false}));
+      console.error('[2] Erro JSON secao', i+1, e.message, '- usando fallback');
+      const paras = conteudo.split(/\n{2,}/).filter(function(p) { return p.trim().length > 0; })
+        .map(function(p) { return { tipo:'normal', texto:p.trim().replace(/\n/g,' '), negrito:false }; });
       capitulos.push({ numero: String(i+1), titulo, paragrafos: paras });
     }
   }
 
-  return { titulo: base.titulo || '', subtitulo: base.subtitulo || '', autor: base.autor || '', credencial: base.credencial || '', capitulos };
+  return {
+    titulo: String(base.titulo || ''),
+    subtitulo: String(base.subtitulo || ''),
+    autor: String(base.autor || ''),
+    credencial: String(base.credencial || ''),
+    capitulos
+  };
 }
 
 // ══════════════════════════════════════
 // ETAPA 4 — REVISÃO ORTOGRÁFICA
-// Corrige ortografia, gramática,
-// pontuação, regência, crase
-// sem alterar o conteúdo
 // ══════════════════════════════════════
 async function etapa4_revisar(capitulos) {
   console.log('[4] Revisando ortografia e gramatica...');
@@ -258,7 +290,7 @@ async function etapa4_revisar(capitulos) {
       revisados.push(cap); continue;
     }
 
-    const textoParas = cap.paragrafos.map(p => p.texto || '').join('\n\n');
+    const textoParas = cap.paragrafos.map(function(p) { return p.texto || ''; }).join('\n\n');
     const prompt =
       'Revise o texto corrigindo APENAS erros de ortografia, concordancia, pontuacao, regencia e crase.\n' +
       'NAO mude o estilo, conteudo, paragrafos nem negritos (**texto**).\n' +
@@ -267,7 +299,7 @@ async function etapa4_revisar(capitulos) {
 
     try {
       const resposta = await chamarClaude(prompt, 8000);
-      const parasRevisados = resposta.trim().split(/\n{2,}/).filter(p => p.trim());
+      const parasRevisados = resposta.trim().split(/\n{2,}/).filter(function(p) { return p.trim(); });
       const novosParagrafos = cap.paragrafos.map(function(p, idx) {
         return { tipo: p.tipo, texto: parasRevisados[idx] ? parasRevisados[idx].trim() : p.texto, negrito: p.negrito };
       });
@@ -282,9 +314,7 @@ async function etapa4_revisar(capitulos) {
 }
 
 // ══════════════════════════════════════
-// ETAPA 5 — DIAGRAMAR
-// Gera o DOCX com as especificações
-// exatas do livro de referência
+// ETAPA 5 — DIAGRAMAR DOCX
 // ══════════════════════════════════════
 async function etapa5_diagramar(estrutura, pedido, outputPath) {
   console.log('[5] Gerando DOCX...');
@@ -316,15 +346,10 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
   }
 
   function pCorpo(texto, negrito) {
-    // Verificar se é uma tabela
     if (String(texto).startsWith('[TABELA]')) {
       const linhas = String(texto).replace('[TABELA]','').replace('[/TABELA]','').trim().split('\n');
       return linhas.map(function(linha) {
-        return new Paragraph({
-          alignment: AlignmentType.LEFT,
-          spacing:{ before:0, after:60 },
-          children:[new TextRun({ text: linha, font:FONTE, size:fmt.corpoSz, color:PRETO })]
-        });
+        return new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:60}, children:[new TextRun({ text:linha, font:FONTE, size:fmt.corpoSz, color:PRETO })] });
       });
     }
     return new Paragraph({
@@ -349,7 +374,6 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     });
   }
 
-  // CABEÇALHO: título esquerda | autor direita
   const cabecalho = new Header({ children:[new Paragraph({
     spacing:{before:0,after:0},
     tabStops:[{type:TabStopType.RIGHT, position:fmt.pageW-fmt.mEsq-fmt.mDir}],
@@ -361,7 +385,6 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     ]
   })]});
 
-  // RODAPÉ: número de página centralizado
   const rodape = new Footer({ children:[new Paragraph({
     alignment:AlignmentType.CENTER,
     spacing:{before:0,after:0},
@@ -369,7 +392,6 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     children:[new TextRun({ children:[PageNumber.CURRENT], font:FONTE, size:fmt.rodSz, color:PRETO })]
   })]});
 
-  // PÁGINA DE ROSTO
   const rosto = [
     vazio(), vazio(), vazio(), vazio(),
     new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:0,after:280},
@@ -392,7 +414,6 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     br()
   ];
 
-  // SUMÁRIO
   const sumario = [
     linhaTenue(0, 200),
     new Paragraph({ alignment:AlignmentType.LEFT, spacing:{before:0,after:400},
@@ -404,14 +425,13 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
     br()
   ];
 
-  // CONTEÚDO DOS CAPÍTULOS
   const conteudo = [];
   caps.forEach(function(cap, i) {
     conteudo.push(linhaTenue(0, 200));
     conteudo.push(pTituloSecao(String(cap.numero) + '. ' + String(cap.titulo || '')));
     var paras = Array.isArray(cap.paragrafos) ? cap.paragrafos : [];
     paras.forEach(function(p) {
-      if (!p || !p.texto) return;
+      if (!p || !p.texto || String(p.texto).trim().length === 0) return;
       if (p.tipo === 'subtitulo') {
         conteudo.push(pSubtitulo(p.texto));
       } else {
@@ -441,13 +461,11 @@ async function etapa5_diagramar(estrutura, pedido, outputPath) {
 
   const buf = await Packer.toBuffer(doc);
   fs.writeFileSync(outputPath, buf);
-  console.log('[5] DOCX gerado:', caps.length, 'capitulos');
+  console.log('[5] DOCX gerado:', caps.length, 'capitulos,', caps.reduce(function(a,c){return a+(c.paragrafos||[]).length;},0), 'paragrafos total');
 }
 
 // ══════════════════════════════════════
 // ETAPA 6 — ENTREGAR AO CLIENTE
-// Salva, gera link e notifica por
-// email e WhatsApp
 // ══════════════════════════════════════
 async function etapa6_entregar(pedido, docxPath, pedidos, idx) {
   console.log('[6] Entregando ao cliente...');
@@ -482,21 +500,17 @@ async function executarDiagramacao(pedido) {
     const arquivoPath = path.join(UPLOAD_DIR, pedido.arquivoOriginal);
     if (!fs.existsSync(arquivoPath)) throw new Error('Arquivo nao encontrado: ' + arquivoPath);
 
-    // ETAPA 1: Ler o livro completo
     const livro = await etapa1_lerLivro(arquivoPath);
     const texto = livro.texto || livro;
     if (!texto || texto.length < 50) throw new Error('Arquivo sem conteudo de texto');
 
-    // ETAPAS 2+3: Estruturar livro completo em uma chamada
     const estruturaBase = await etapa2e3_estruturarLivro(texto);
     if (!estruturaBase.capitulos || estruturaBase.capitulos.length === 0) {
       throw new Error('Nenhum capitulo identificado no livro');
     }
 
-    // ETAPA 4: Revisão ortográfica e gramatical
     const capitulosRevisados = await etapa4_revisar(estruturaBase.capitulos);
 
-    // ETAPA 5: Diagramar o DOCX
     const estrutura = {
       titulo:     estruturaBase.titulo     || pedido.titulo,
       subtitulo:  estruturaBase.subtitulo  || '',
@@ -507,7 +521,6 @@ async function executarDiagramacao(pedido) {
     const docxPath = path.join(ENTREGA_DIR, pedido.id + '_diagramado.docx');
     await etapa5_diagramar(estrutura, pedido, docxPath);
 
-    // ETAPA 6: Entregar ao cliente
     await etapa6_entregar(pedido, docxPath, pedidos, idx);
     console.log('=== CONCLUIDO:', pedido.id, '===');
 
@@ -522,13 +535,11 @@ async function executarDiagramacao(pedido) {
   }
 }
 
-// ── ADMIN AUTH ──
 function adminAuth(req, res, next) {
   if (req.headers['x-admin-key'] === ADMIN_KEY) return next();
   res.status(401).json({ erro: 'Nao autorizado' });
 }
 
-// ── ROTAS ──
 app.post('/api/pedido', function(req, res) {
   const { nome, email, whats, titulo, pacote, formato, preco } = req.body;
   if (!nome || !email || !whats || !titulo) return res.status(400).json({ erro: 'Campos obrigatorios' });
