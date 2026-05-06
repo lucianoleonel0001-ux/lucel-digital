@@ -132,11 +132,11 @@ footer a{color:#888;text-decoration:none}
 <div class="hero">
   <div class="brand">Lucel Digital</div>
   <h1>Diagramação <span>profissional</span><br>para o seu livro</h1>
-  <p>Envie o manuscrito. Escolha o pacote e o formato. Receba seu livro pronto em .docx e .pdf em até 2 horas.</p>
+  <p>Envie o manuscrito em Word (.docx ou .doc). Escolha o pacote e o formato. Receba seu livro pronto em .docx em até 2 horas.</p>
   <br>
   <button class="btn-cta" onclick="document.getElementById('pedido').scrollIntoView({behavior:'smooth'})">Começar agora →</button>
-  <div class="trust">✓ .docx + .pdf inclusos · Entrega em até 2h · Pagamento via PIX</div>
-  <div style="margin-top:20px;background:rgba(201,169,110,0.15);border:1px solid #c9a96e;padding:10px 24px;display:inline-block;font-size:13px;color:#c9a96e;letter-spacing:.5px">⚠️ Limite máximo: <strong>240 páginas</strong> por livro</div>
+  <div class="trust">✓ .docx editável incluso · Imagens e tabelas preservadas · Entrega em até 2h · Pagamento via PIX</div>
+  <div style="margin-top:20px;background:rgba(201,169,110,0.15);border:1px solid #c9a96e;padding:10px 24px;display:inline-block;font-size:13px;color:#c9a96e;letter-spacing:.5px">⚠️ Envie apenas <strong>.docx ou .doc</strong> · Limite máximo: <strong>240 páginas</strong></div>
 </div>
 
 <!-- FLUXO DO PEDIDO -->
@@ -182,9 +182,9 @@ footer a{color:#888;text-decoration:none}
         <ul class="pac-itens">
           <li>Diagramação profissional</li>
           <li>Arquivo .docx editável</li>
-          <li>Arquivo .pdf para gráfica</li>
           <li>Sumário automático</li>
           <li>Cabeçalho e rodapé numerado</li>
+          <li>Imagens e tabelas preservadas</li>
           <li>Revisão ortográfica e gramatical</li>
           <li>Concordância, pontuação e regência</li>
           <li>Uso correto de crase</li>
@@ -201,7 +201,7 @@ footer a{color:#888;text-decoration:none}
   <!-- PASSO 2: FORMATO -->
   <div class="section-wrap" id="passo2">
     <p style="text-align:center;color:#666;font-size:14px;margin-bottom:16px">Selecione o tamanho do seu livro</p>
-    <div style="text-align:center;background:#fff3cd;border:.5px solid #c9a96e;padding:10px 20px;max-width:500px;margin:0 auto 24px;font-size:13px;color:#7a5c00">⚠️ Limite máximo: <strong>240 páginas</strong> por livro · Arquivos maiores não são aceitos</div>
+    <div style="text-align:center;background:#fff3cd;border:.5px solid #c9a96e;padding:10px 20px;max-width:500px;margin:0 auto 24px;font-size:13px;color:#7a5c00">⚠️ Envie apenas <strong>.docx ou .doc</strong> · Limite máximo: <strong>240 páginas</strong> por livro</div>
     <div class="formatos-grid">
       <div class="fmt-card" onclick="selecionarFormato(this,'14×21cm')">
         <div class="fmt-check">✓</div>
@@ -260,11 +260,14 @@ footer a{color:#888;text-decoration:none}
   <!-- PASSO 4: UPLOAD -->
   <div class="section-wrap" id="passo4">
     <div class="upload-wrap" style="padding:0 0 32px">
+      <div style="background:#fff3cd;border:.5px solid #c9a96e;padding:10px 20px;margin-bottom:20px;font-size:13px;color:#7a5c00;text-align:center">
+        📄 Envie apenas arquivos <strong>.docx ou .doc</strong> — isso garante que imagens e tabelas sejam preservadas na diagramação.
+      </div>
       <div class="upload-box" id="uploadBox">
-        <input type="file" id="arquivo" accept=".docx,.doc,.pdf" onchange="arquivoSelecionado(this)">
+        <input type="file" id="arquivo" accept=".docx,.doc" onchange="arquivoSelecionado(this)">
         <div class="upload-icon">📄</div>
         <h3>Arraste seu arquivo aqui</h3>
-        <p>ou clique para selecionar · .docx, .doc ou .pdf</p>
+        <p>ou clique para selecionar · apenas .docx ou .doc</p>
         <div class="file-name" id="fileName"></div>
       </div>
       <p style="font-size:12px;color:#999;margin-top:12px;text-align:center">Envie o manuscrito exatamente como está. Não faremos alterações no conteúdo.</p>
@@ -285,7 +288,7 @@ footer a{color:#888;text-decoration:none}
         <div style="font-size:12px;color:#666;letter-spacing:1px;margin-bottom:6px">CHAVE PIX (CNPJ)</div>
         <div class="pix-chave">37.871.182/0001-86</div>
         <div style="font-size:12px;color:#666;margin-top:4px">Lucel Digital</div>
-        <div class="pix-valor" id="pixValor">R$ 80,00</div>
+        <div class="pix-valor" id="pixValor">R$ 120,00</div>
         <div style="font-size:12px;color:#666">Valor exato a transferir</div>
       </div>
       <a id="btnWhats" class="btn-whats" href="#" target="_blank">💬 Enviar comprovante no WhatsApp</a>
@@ -321,12 +324,12 @@ footer a{color:#888;text-decoration:none}
         <div class="gar-desc">A numeração e hierarquia de todos os títulos e subtítulos são mantidas conforme o documento original.</div>
       </div>
       <div class="gar-item">
-        <div class="gar-title">Tabelas e imagens</div>
-        <div class="gar-desc">Tabelas e imagens são preservadas e reposicionadas conforme o novo layout. Nenhum elemento visual é perdido.</div>
+        <div class="gar-title">Imagens preservadas</div>
+        <div class="gar-desc">Todas as imagens do manuscrito são extraídas e reposicionadas no documento diagramado. Nenhuma é perdida.</div>
       </div>
       <div class="gar-item">
-        <div class="gar-title">Quebras de linha corrigidas</div>
-        <div class="gar-desc">Identificamos e corrigimos todas as quebras de linha indevidas causadas na conversão de PDF para Word.</div>
+        <div class="gar-title">Tabelas preservadas</div>
+        <div class="gar-desc">Tabelas são mantidas com sua estrutura original, adaptadas ao novo layout sem perda de dados.</div>
       </div>
       <div class="gar-item">
         <div class="gar-title">Conferência final</div>
@@ -341,11 +344,11 @@ footer a{color:#888;text-decoration:none}
   <div class="section-title" style="margin-bottom:8px">Como funciona?</div>
   <div class="divider"></div>
   <div class="steps">
-    <div class="step"><div class="step-num">01</div><h3>Escolha o pacote</h3><p>Diagramação ou Diagramação + Revisão.</p></div>
+    <div class="step"><div class="step-num">01</div><h3>Escolha o pacote</h3><p>Diagramação com revisão completa incluída.</p></div>
     <div class="step"><div class="step-num">02</div><h3>Escolha o formato</h3><p>14×21, 16×23 ou A4.</p></div>
-    <div class="step"><div class="step-num">03</div><h3>Suba o arquivo</h3><p>.docx, .doc ou .pdf.</p></div>
+    <div class="step"><div class="step-num">03</div><h3>Suba o arquivo</h3><p>Apenas .docx ou .doc.</p></div>
     <div class="step"><div class="step-num">04</div><h3>Pague via PIX</h3><p>Envie o comprovante pelo WhatsApp.</p></div>
-    <div class="step"><div class="step-num">05</div><h3>Receba em até 2h</h3><p>.docx e .pdf prontos por e-mail e WhatsApp.</p></div>
+    <div class="step"><div class="step-num">05</div><h3>Receba em até 2h</h3><p>.docx pronto por e-mail e WhatsApp.</p></div>
   </div>
 </div>
 
@@ -356,9 +359,9 @@ footer a{color:#888;text-decoration:none}
     <div class="divider"></div>
     <div class="faq-item"><div class="faq-q" onclick="toggle(this)">O que inclui a revisão ortográfica e gramatical? <span>+</span></div><div class="faq-a">Corrigimos ortografia, concordância verbal e nominal, pontuação, regência e uso correto de crase.</div></div>
     <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Posso mudar o formato depois de pagar? <span>+</span></div><div class="faq-a">Não. O formato é definido antes do início da diagramação. Escolha com atenção antes de contratar.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Quais arquivos posso enviar? <span>+</span></div><div class="faq-a">.docx, .doc e .pdf. Quanto mais limpo o texto, melhor o resultado final.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Quais arquivos posso enviar? <span>+</span></div><div class="faq-a">.docx ou .doc (Word). O formato Word garante que todas as imagens e tabelas sejam preservadas na diagramação.</div></div>
     <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Como recebo o arquivo diagramado? <span>+</span></div><div class="faq-a">Você recebe um link de download por e-mail e WhatsApp assim que o serviço for concluído.</div></div>
-    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Os arquivos são meus? Posso publicar? <span>+</span></div><div class="faq-a">Sim, 100%. O .docx e o .pdf são de sua propriedade para usar como quiser.</div></div>
+    <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Os arquivos são meus? Posso publicar? <span>+</span></div><div class="faq-a">Sim, 100%. O .docx é de sua propriedade para usar como quiser.</div></div>
     <div class="faq-item"><div class="faq-q" onclick="toggle(this)">Há reembolso? <span>+</span></div><div class="faq-a">Por ser serviço digital com entrega imediata, não há reembolso após início da diagramação, conforme o CDC.</div></div>
   </div>
 </div>
@@ -371,12 +374,6 @@ footer a{color:#888;text-decoration:none}
 
 <script>
 var pacote='Diagramação + Revisão', preco='120', formato='';
-
-function selecionarPacote(el, p, v){
-  document.querySelectorAll('.pac-card').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-  pacote=p; preco=v;
-}
 
 function selecionarFormato(el, f){
   document.querySelectorAll('.fmt-card').forEach(c=>c.classList.remove('active'));
@@ -397,6 +394,9 @@ function irPasso(n){
   if(n===5){
     var arq=document.getElementById('arquivo').files[0];
     if(!arq){ alert('Selecione o arquivo do seu manuscrito para continuar.'); return; }
+    // Validar extensão
+    var ext=arq.name.split('.').pop().toLowerCase();
+    if(ext!=='docx'&&ext!=='doc'){ alert('Envie apenas arquivos .docx ou .doc. PDF não é aceito.'); return; }
     atualizarPix();
     enviarPedido();
   }
@@ -461,6 +461,12 @@ function enviarPedido(){
 
 function arquivoSelecionado(input){
   if(input.files[0]){
+    var ext=input.files[0].name.split('.').pop().toLowerCase();
+    if(ext!=='docx'&&ext!=='doc'){
+      alert('Envie apenas arquivos .docx ou .doc. PDF não é aceito.');
+      input.value='';
+      return;
+    }
     var fn=document.getElementById('fileName');
     fn.textContent='📄 '+input.files[0].name;
     fn.style.display='block';
@@ -482,6 +488,11 @@ box.addEventListener('drop',function(e){
   e.preventDefault();box.classList.remove('drag');
   var f=e.dataTransfer.files[0];
   if(f){
+    var ext=f.name.split('.').pop().toLowerCase();
+    if(ext!=='docx'&&ext!=='doc'){
+      alert('Envie apenas arquivos .docx ou .doc. PDF não é aceito.');
+      return;
+    }
     document.getElementById('arquivo').files=e.dataTransfer.files;
     arquivoSelecionado(document.getElementById('arquivo'));
   }
